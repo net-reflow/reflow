@@ -5,22 +5,22 @@ use std::time;
 use std::sync;
 
 use futures::Future;
-use tokio_core::reactor::Handle;
 use trust_dns::error::*;
 use trust_dns::rr::domain::Name;
+use trust_dns::rr::LowerName;
 use trust_dns::op::Message;
 use trust_dns::udp::UdpClientStream;
 use trust_dns::tcp::TcpClientStream;
 use trust_dns::client::ClientFuture;
 use trust_dns::client::BasicClientHandle;
 use trust_dns::client::ClientHandle;
+use trust_dns_proto::xfer::dns_handle::DnsHandle;
 
 use super::monitor_failure::FailureCounter;
+use std::io;
 
 pub struct DnsClient {
-    fut_client: RefCell<BasicClientHandle>,
     server: SocketAddr,
-    handle: Handle,
     udp_fail_monitor: sync::Arc<FailureCounter>,
 }
 
@@ -31,25 +31,29 @@ impl fmt::Display for DnsClient {
 }
 
 impl DnsClient {
-    pub fn new(sa: SocketAddr, handle: Handle) -> Result<DnsClient, ClientError> {
-        let (streamfut, streamhand) = UdpClientStream::new(sa, &handle.clone());
-        let futclient = ClientFuture::with_timeout(streamfut, streamhand, &handle.clone(), time::Duration::from_secs(3), None);
-
+    pub fn new(sa: SocketAddr) -> Result<DnsClient, ClientError> {
         Ok(DnsClient {
-            fut_client: RefCell::new(futclient),
             server: sa,
-            handle: handle,
             udp_fail_monitor: sync::Arc::new(FailureCounter::new())
         })
     }
 
-    fn get_tcp_client(&self)-> BasicClientHandle {
-        let (streamfut, streamhand) = TcpClientStream::new(self.server, &self.handle.clone());
-        let futtcp = ClientFuture::new(streamfut, streamhand, &self.handle.clone(), None);
+    fn get_udp_client(&self)-> Box<Future<Item=BasicClientHandle, Error=ClientError>> {
+        let (streamfut, streamhand) =
+            UdpClientStream::new(self.server);
+        let futclient = ClientFuture::with_timeout(
+            streamfut, streamhand,
+            time::Duration::from_secs(3), None);
+        futclient
+    }
+
+    fn get_tcp_client(&self)-> Box<futures::Future<Error=trust_dns::error::Error, Item=trust_dns::client::BasicClientHandle>>  {
+        let (streamfut, streamhand) = TcpClientStream::new(self.server);
+        let futtcp = ClientFuture::new(streamfut, streamhand, None);
         futtcp
     }
 
-    pub fn resolve(&self, q: Message, name: &Name, require_tcp: bool)-> Box<Future<Item=Message, Error=ClientError>> {
+    pub fn resolve(&self, q: Message, name: &LowerName, require_tcp: bool)-> Box<Future<Item=Message, Error=ClientError>> {
         let res = if require_tcp {
             println!("{} using {}, tcp required by client", name, self.server);
             let mut c = self.get_tcp_client();
@@ -60,7 +64,8 @@ impl DnsClient {
             c.send(q)
         } else {
             println!("{} using {}, via udp", name, self.server);
-            let udpres = self.fut_client.borrow_mut().send(q);
+            let udpres
+            = self.get_udp_client().and_then(|c| c.send(q));
             let mon = self.udp_fail_monitor.clone();
             let res = udpres.then(move|x| {
                 match x {

@@ -4,15 +4,15 @@ extern crate error_chain;
 extern crate futures;
 #[macro_use]
 extern crate log;
-extern crate tokio_core;
+extern crate tokio;
 extern crate trust_dns;
 extern crate toml;
 extern crate trust_dns_server;
+extern crate trust_dns_proto;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
 
-use std::io;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -20,7 +20,6 @@ mod resolver;
 mod ruling;
 
 pub fn run(config_path: &str)-> Result<(), Box<Error>> {
-    let mut core = tokio_core::reactor::Core::new()?;
 
     // We provide a way to *instantiate* the service for each new
     // connection; here, we just immediately return a new instance.
@@ -28,8 +27,7 @@ pub fn run(config_path: &str)-> Result<(), Box<Error>> {
     let _ip_matcher = ruling::IpMatcher::new(config_path)?;
     let d = Arc::new(ruler);
 
-    let h = core.handle();
-    let r = resolver::start_resolver(h, d.clone(), config_path)?;
-    core.run(r).map_err(|_| io::Error::new(io::ErrorKind::Other, "tokio core start fail") )?;
+    let r = resolver::start_resolver(d.clone(), config_path)?;
+    tokio::executor::current_thread::block_on_all(r);
     Ok(())
 }
