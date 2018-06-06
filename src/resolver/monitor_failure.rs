@@ -1,12 +1,12 @@
 use std::time;
-use std::cell::RefCell;
+use std::sync::RwLock;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct FailureCounter{
     fail_count: Arc<AtomicUsize>,
     max_count: usize,
-    last_fail_time: RefCell<time::Instant>,
+    last_fail_time: RwLock<time::Instant>,
 }
 
 impl FailureCounter{
@@ -14,7 +14,7 @@ impl FailureCounter{
         FailureCounter{
             fail_count: Arc::new(AtomicUsize::new(0)),
             max_count: 6,
-            last_fail_time: RefCell::new(time::Instant::now()),
+            last_fail_time: RwLock::new(time::Instant::now()),
         }
     }
 
@@ -24,8 +24,10 @@ impl FailureCounter{
             false
         } else {
             let waittimesec = 2u64.pow(fails as u32);
-            if let Ok(ft) = self.last_fail_time.try_borrow() {
-                let timesincefail = time::Instant::now().duration_since(*ft).as_secs();
+            let lft =
+                self.last_fail_time.read().map(|rg| rg.clone());
+            if let Ok(ft) = lft {
+                let timesincefail = time::Instant::now().duration_since(ft).as_secs();
                 let remainwait = waittimesec.checked_sub(timesincefail);
                 match remainwait {
                     Some(t) => {
@@ -48,9 +50,9 @@ impl FailureCounter{
     }
 
     fn update_attempt_time(&self) {
-        if let Ok(mut ft) = self.last_fail_time.try_borrow_mut() {
-            *ft = time::Instant::now();
-        }
+        let mut ft =
+            self.last_fail_time.write().unwrap();
+        *ft = time::Instant::now();
     }
 
     pub fn log_failure(&self) {

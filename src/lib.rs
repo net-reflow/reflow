@@ -12,6 +12,7 @@ extern crate trust_dns_proto;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
+extern crate env_logger;
 
 use std::error::Error;
 use std::sync::Arc;
@@ -20,7 +21,9 @@ mod resolver;
 mod ruling;
 
 pub fn run(config_path: &str)-> Result<(), Box<Error>> {
-
+    env_logger::Builder::from_default_env()
+        .default_format_timestamp(false)
+        .init();
     // We provide a way to *instantiate* the service for each new
     // connection; here, we just immediately return a new instance.
     let ruler = ruling::DomainMatcher::new(config_path)?;
@@ -28,6 +31,6 @@ pub fn run(config_path: &str)-> Result<(), Box<Error>> {
     let d = Arc::new(ruler);
 
     let r = resolver::start_resolver(d.clone(), config_path)?;
-    tokio::executor::current_thread::block_on_all(r);
+    tokio::run(r);
     Ok(())
 }
