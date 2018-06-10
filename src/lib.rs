@@ -1,6 +1,6 @@
 extern crate bytes;
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 extern crate futures;
 #[macro_use]
 extern crate log;
@@ -16,6 +16,7 @@ extern crate env_logger;
 
 use std::error::Error;
 use std::sync::Arc;
+use futures::future;
 
 mod resolver;
 mod ruling;
@@ -30,7 +31,12 @@ pub fn run(config_path: &str)-> Result<(), Box<Error>> {
     let _ip_matcher = ruling::IpMatcher::new(config_path)?;
     let d = Arc::new(ruler);
 
-    let r = resolver::start_resolver(d.clone(), config_path)?;
-    tokio::run(r);
+    let ds = resolver::DnsServer::new(d.clone(), config_path)?;
+    tokio::run( future::lazy(move || {
+        if let Err(e) = ds.start() {
+            error!("Dns server error: {:?}", e);
+        }
+        Ok::<_, ()>(())
+    }));
     Ok(())
 }

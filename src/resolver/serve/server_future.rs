@@ -18,8 +18,11 @@ use trust_dns_server::server::{TimeoutStream};
 use trust_dns_server::server::ResponseHandle;
 use trust_dns_server::server::ResponseHandler;
 
-use super::handler::SmartResolver;
+use super::super::handler::SmartResolver;
 use trust_dns::op::Message;
+use std::net::SocketAddr;
+use trust_dns::BufStreamHandle;
+use trust_dns::error::ClientError;
 
 // TODO, would be nice to have a Slab for buffers here...
 
@@ -37,7 +40,7 @@ impl ServerFuture {
     }
 
     /// Register a UDP socket. Should be bound before calling this function.
-    pub fn listen_udp(&self, socket: tokio::net::UdpSocket)-> impl Future<Item=(), Error=()> {
+    pub fn listen_udp(&self, socket: tokio::net::UdpSocket) {
         debug!("registered udp: {:?}", socket);
 
         // create the new UdpStream
@@ -48,21 +51,11 @@ impl ServerFuture {
         // this spawns a ForEach future which handles all the requests into a Handler.
         let f = buf_stream
             .for_each(move |(request, peer)| {
-                let response = handler.handle_future(
-                    &request,false);
-                let sh = stream_handle.clone();
-                let r =
-                    response.and_then(move |res| {
-                        let reshand = ResponseHandle::new(peer.clone(), sh);
-                        let mes: Message = res.into();
-                        reshand.send(mes);
-                        Ok(())
-                }).then(|_| Ok(()));
-                tokio::spawn(r);
+                Self::handle_request(request, peer, stream_handle.clone(), handler.clone());
                 Ok(())
             })
             .map_err(|e| debug!("error in UDP request_stream handler: {}", e));
-        f
+        tokio::spawn(f);
     }
 
     /// Register a TcpListener to the Server. This should already be bound to either an IPv6 or an
@@ -100,17 +93,7 @@ impl ServerFuture {
                 // and spawn to the io_loop
                 tokio::spawn(timeout_stream
                     .for_each(move |(buf, peer)| {
-                        let response =
-                            handler.handle_future(&buf,  true);
-                        let sh = stream_handle.clone();
-                        let f =
-                            response.and_then(move |r| {
-                                let reshand = ResponseHandle::new(peer.clone(), sh);
-                                let mes: Message = r.into();
-                                reshand.send(mes);
-                                Ok(())
-                        }).then(|_| Ok(()));
-                        tokio::spawn(f);
+                        Self::handle_request(buf, peer, stream_handle.clone(), handler.clone());
                         Ok(())
                     })
                     .map_err(move |e| {
@@ -125,6 +108,24 @@ impl ServerFuture {
         //.map_err(|e| debug!("error in inbound tcp_stream: {}", e))
         tokio::spawn(f);
         Ok(())
+    }
+
+    fn handle_request(
+        buffer: Vec<u8>,
+        src_addr: SocketAddr,
+        stream_handle: BufStreamHandle<ClientError>,
+        handler: Arc<SmartResolver>,
+    ) {
+        let response = handler.handle_future(
+            &buffer, false);
+        let reply =
+            response.and_then(move |res| {
+                let reshand = ResponseHandle::new(src_addr, stream_handle);
+                let mes: Message = res.into();
+                reshand.send(mes);
+                Ok(())
+            }).map_err(|e| error!("Error replying dns: {:?}", e));
+        tokio::spawn(reply);
     }
 }
 

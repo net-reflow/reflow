@@ -1,11 +1,12 @@
 use std::net::SocketAddr;
 use std::io;
-use std::error::Error;
 use std::io::Read;
 use std::fs;
 use std::net;
 use std::path;
 use std::collections::BTreeMap;
+
+use failure::Error;
 
 use toml;
 
@@ -24,7 +25,7 @@ struct ConfValue {
 }
 
 impl DnsProxyConf {
-    pub fn new(conf: path::PathBuf) -> Result<DnsProxyConf, Box<Error>> {
+    pub fn new(conf: path::PathBuf) -> Result<DnsProxyConf, Error> {
         let p = conf.join("resolve.config");
         let f = fs::File::open(p)?;
         let mut bufreader = io::BufReader::new(f);
