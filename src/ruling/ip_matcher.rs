@@ -13,19 +13,21 @@ use std::str::FromStr;
 use self::treebitmap::IpLookupTable;
 use self::treebitmap::IpLookupTableOps;
 use super::util::find_confs;
+use std::path;
 
 pub struct IpMatcher {
     ip4_table: IpLookupTable<Ipv4Addr, Arc<String>>
 }
 
 impl IpMatcher {
-    pub fn new(confpath: &str) -> io::Result<IpMatcher> {
+    pub fn new(confpath: &path::Path) -> io::Result<IpMatcher> {
         let regions = find_confs(confpath, "ipregion")?;
         Ok(IpMatcher{
             ip4_table: build_ip4_table(&regions)
         })
     }
 
+    #[allow(dead_code)]
     pub fn rule_ip4(&self, ip: Ipv4Addr) -> Option<&Arc<String>> {
         match self.ip4_table.longest_match(ip) {
             Some((_, _, v)) => Some(v),

@@ -4,6 +4,7 @@ extern crate failure;
 extern crate futures;
 #[macro_use]
 extern crate log;
+#[macro_use] extern crate structopt;
 extern crate tokio;
 extern crate trust_dns;
 extern crate toml;
@@ -17,16 +18,18 @@ extern crate env_logger;
 use std::error::Error;
 use std::sync::Arc;
 use futures::future;
+use structopt::StructOpt;
 
 mod resolver;
 mod ruling;
+mod cmd_options;
 
-pub fn run(config_path: &str)-> Result<(), Box<Error>> {
+pub fn run()-> Result<(), Box<Error>> {
     env_logger::Builder::from_default_env()
         .default_format_timestamp(false)
         .init();
-    // We provide a way to *instantiate* the service for each new
-    // connection; here, we just immediately return a new instance.
+    let opt = cmd_options::Opt::from_args();
+    let config_path = &opt.config;
     let ruler = ruling::DomainMatcher::new(config_path)?;
     let _ip_matcher = ruling::IpMatcher::new(config_path)?;
     let d = Arc::new(ruler);

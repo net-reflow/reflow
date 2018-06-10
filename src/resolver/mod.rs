@@ -11,13 +11,13 @@ mod dnsclient;
 mod monitor_failure;
 mod config;
 mod serve;
-mod util;
 
 use self::serve::ServerFuture;
 use super::ruling::DomainMatcher;
 use self::config::DnsProxyConf;
 use std::net::SocketAddr;
 use std::io;
+use std::path;
 
 /// Serve dns requests by forwarding
 pub struct DnsServer {
@@ -27,8 +27,8 @@ pub struct DnsServer {
 }
 
 impl DnsServer {
-    pub fn new(router: Arc<DomainMatcher>, config: &str) -> Result<DnsServer, Error> {
-        let conf = DnsProxyConf::new(config.into())?;
+    pub fn new(router: Arc<DomainMatcher>, config: &path::Path) -> Result<DnsServer, Error> {
+        let conf = DnsProxyConf::new(config)?;
         let handler = handler::SmartResolver::new(router, &conf)?;
         let server = ServerFuture::new(handler)?;
         let addr = conf.listen;

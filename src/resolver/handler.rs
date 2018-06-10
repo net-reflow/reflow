@@ -3,6 +3,7 @@ use std::sync::Arc;
 use failure::Error;
 use failure::err_msg;
 use futures::Future;
+use futures::future;
 
 use trust_dns::error::*;
 use trust_dns::op::Message;
@@ -14,10 +15,8 @@ use super::super::ruling::DomainMatcher;
 use trust_dns::serialize::binary::BinDecoder;
 use trust_dns::serialize::binary::BinDecodable;
 use trust_dns_proto::xfer::DnsResponse;
-use trust_dns_server::server::RequestHandler;
-use trust_dns_server::server::ResponseHandler;
-use trust_dns_server::server::Request;
-use resolver::util::message_request_to_message;
+
+type SF<V, E> = Future<Item=V, Error=E> + Send;
 
 pub struct SmartResolver {
     region_resolver: Vec<(String, DnsClient)>,
@@ -26,9 +25,8 @@ pub struct SmartResolver {
 }
 
 impl SmartResolver {
-    pub fn new(router: Arc<DomainMatcher>, regionconf :&DnsProxyConf)-> Result<SmartResolver,
-        Error> {
-
+    pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxyConf)
+        -> Result<SmartResolver, Error> {
         let rresolvers: Vec<(String, Result<DnsClient, ClientError>)> = regionconf.resolv
             .iter().map(|(r, s)| {
             let dc = DnsClient::new(s.clone());
@@ -47,19 +45,17 @@ impl SmartResolver {
         })
     }
 
-    pub fn handle_future(&self, buffer: &[u8], use_tcp:bool)
-        -> Box<Future<Item=DnsResponse, Error=Error> + Send> {
+    pub fn handle_future(&self, buffer: &[u8], use_tcp:bool) -> Box<SF<DnsResponse, Error>> {
         let mut decoder = BinDecoder::new(&buffer);
         let message = Message::read(&mut decoder).expect("msg deco err");
         self.async_response(message, use_tcp)
     }
 
-    pub fn async_response(&self, message: Message, use_tcp: bool)
-        -> Box<Future<Item=DnsResponse, Error=Error> + Send> {
+    pub fn async_response(&self, message: Message, use_tcp: bool) -> Box<SF<DnsResponse, Error>> {
         let name = {
             let queries = message.queries();
             if queries.len() != 1 {
-                panic!("more than 1 queries in a message: {:?}", message);
+                return Box::new(future::err(format_err!("more than 1 queries in a message: {:?}", message)));
             }
             let q = &queries[0];
             LowerName::new(q.name())

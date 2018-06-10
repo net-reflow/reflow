@@ -11,6 +11,7 @@ futures = "0.1.20"
 log = "^0.4"
 tokio = "0.1.6"
 radix_trie = "0.1.*"
+structopt = "^0"
 treebitmap = { path="../treebitmap" }
 trust-dns-server = "0.14.0"
 trust-dns = "0.14.0"

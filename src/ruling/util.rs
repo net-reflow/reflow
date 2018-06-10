@@ -2,8 +2,9 @@ use std::io::{self};
 use std::fs::{self, DirEntry};
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::path;
 
-pub fn find_confs(path: &str, kind: &str)-> io::Result<HashMap<Arc<String>, Vec<DirEntry>>>{
+pub fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Arc<String>, Vec<DirEntry>>>{
     let mut region_map = HashMap::new();
     let kindprefix = format!("{}.", kind);
     for entry in fs::read_dir(path)? {

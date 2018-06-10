@@ -10,13 +10,14 @@ use std::io::Read;
 
 use super::util::find_confs;
 use self::radix_trie::Trie;
+use std::path;
 
 pub struct DomainMatcher {
     domain_trie: Trie<String, Arc<String>>,
 }
 
 impl <'a> DomainMatcher{
-    pub fn new(config: &str)-> io::Result<DomainMatcher> {
+    pub fn new(config: &path::Path)-> io::Result<DomainMatcher> {
         let regions = find_confs(config, "region")?;
         let ruler = DomainMatcher {
             domain_trie: Self::build_domain_trie(&regions),

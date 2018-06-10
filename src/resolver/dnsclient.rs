@@ -48,7 +48,6 @@ impl DnsClient {
     fn get_tcp_client(&self)-> Box<Future<Error=ClientError, Item=BasicClientHandle> + Send>  {
         let (streamfut, streamhand) = TcpClientStream::new(self.server);
         let futtcp = ClientFuture::new(streamfut, streamhand, None);
-        //futtcp.and_then(|f| f.send())
         futtcp
     }
 

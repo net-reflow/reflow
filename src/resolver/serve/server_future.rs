@@ -43,12 +43,10 @@ impl ServerFuture {
     pub fn listen_udp(&self, socket: tokio::net::UdpSocket) {
         debug!("registered udp: {:?}", socket);
 
-        // create the new UdpStream
         let (buf_stream, stream_handle) =
             UdpStream::with_bound(socket);
         let handler = self.handler.clone();
 
-        // this spawns a ForEach future which handles all the requests into a Handler.
         let f = buf_stream
             .for_each(move |(request, peer)| {
                 Self::handle_request(request, peer, stream_handle.clone(), handler.clone());
@@ -58,8 +56,7 @@ impl ServerFuture {
         tokio::spawn(f);
     }
 
-    /// Register a TcpListener to the Server. This should already be bound to either an IPv6 or an
-    ///  IPv4 address.
+    /// Register an already bound  cpListener to the Server
     ///
     /// To make the server more resilient to DOS issues, there is a timeout. Care should be taken
     ///  to not make this too low depending on use cases.
@@ -73,24 +70,19 @@ impl ServerFuture {
     pub fn listen_tcp(&self,
                       listener: tokio::net::TcpListener,
                       timeout: Duration)-> io::Result<()> {
-        // TODO: this is an awkward interface with socketaddr...
         debug!("registered tcp: {:?}", listener);
         let handler = self.handler.clone();
-        // for each incoming request...
         let f = listener
             .incoming()
             .for_each(move |tcp_stream| {
                 let src_addr = tcp_stream.peer_addr().unwrap();
-                debug!("accepted request from: {}", src_addr);
-                // take the created stream...
+                debug!("accepted tcp request from: {}", src_addr);
                 let (buf_stream, stream_handle) =
                     TcpStream::from_stream(tcp_stream, src_addr);
                 let timeout_stream =
-                    TimeoutStream::new(buf_stream, timeout)
-                        .map_err(|_| ());
+                    TimeoutStream::new(buf_stream, timeout);
                 let handler = handler.clone();
 
-                // and spawn to the io_loop
                 tokio::spawn(timeout_stream
                     .for_each(move |(buf, peer)| {
                         Self::handle_request(buf, peer, stream_handle.clone(), handler.clone());
@@ -104,8 +96,8 @@ impl ServerFuture {
                 );
 
                 Ok(())
-            }).map_err(|_| ());
-        //.map_err(|e| debug!("error in inbound tcp_stream: {}", e))
+            })
+        .map_err(|e| error!("error in inbound tcp_stream: {}", e));
         tokio::spawn(f);
         Ok(())
     }
@@ -122,8 +114,7 @@ impl ServerFuture {
             response.and_then(move |res| {
                 let reshand = ResponseHandle::new(src_addr, stream_handle);
                 let mes: Message = res.into();
-                reshand.send(mes);
-                Ok(())
+                reshand.send(mes).map_err(|e| e.into())
             }).map_err(|e| error!("Error replying dns: {:?}", e));
         tokio::spawn(reply);
     }

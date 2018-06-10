@@ -25,7 +25,7 @@ struct ConfValue {
 }
 
 impl DnsProxyConf {
-    pub fn new(conf: path::PathBuf) -> Result<DnsProxyConf, Error> {
+    pub fn new(conf: &path::Path) -> Result<DnsProxyConf, Error> {
         let p = conf.join("resolve.config");
         let f = fs::File::open(p)?;
         let mut bufreader = io::BufReader::new(f);
