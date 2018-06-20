@@ -14,7 +14,7 @@ use super::config::DnsProxyConf;
 use super::super::ruling::DomainMatcher;
 use trust_dns::serialize::binary::BinDecoder;
 use trust_dns::serialize::binary::BinDecodable;
-use trust_dns_proto::xfer::DnsResponse;
+use futures_cpupool::CpuPool;
 
 type SF<V, E> = Future<Item=V, Error=E> + Send;
 
@@ -25,19 +25,14 @@ pub struct SmartResolver {
 }
 
 impl SmartResolver {
-    pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxyConf)
+    pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxyConf, pool: CpuPool)
         -> Result<SmartResolver, Error> {
-        let rresolvers: Vec<(String, Result<DnsClient, ClientError>)> = regionconf.resolv
+        let rresolvers: Vec<(String, DnsClient)> = regionconf.resolv
             .iter().map(|(r, s)| {
-            let dc = DnsClient::new(s.clone());
+            let dc = DnsClient::new(s.clone(), None, &pool);
             (r.clone(), dc)
         }).collect();
-        if let Some(_) = rresolvers.iter().find(|&&(_, ref c)| c.is_err()) {
-            return Err(err_msg("error while connecting with a dns server"));
-        }
-        let rresolvers = rresolvers.into_iter().map(|(region, cli)| (region, cli.unwrap())).collect();
-        let dresolver = DnsClient::new(regionconf.default.clone())
-            .map_err(|e| format_err!("client error {}", e))?;
+        let dresolver = DnsClient::new(regionconf.default.clone(), None, &pool);
         Ok(SmartResolver {
             region_resolver: rresolvers,
             default_resolver: dresolver,
@@ -45,13 +40,10 @@ impl SmartResolver {
         })
     }
 
-    pub fn handle_future(&self, buffer: &[u8], use_tcp:bool) -> Box<SF<DnsResponse, Error>> {
+    pub fn handle_future(&self, buffer: &[u8]) -> Box<SF<Vec<u8>, Error>> {
         let mut decoder = BinDecoder::new(&buffer);
         let message = Message::read(&mut decoder).expect("msg deco err");
-        self.async_response(message, use_tcp)
-    }
 
-    pub fn async_response(&self, message: Message, use_tcp: bool) -> Box<SF<DnsResponse, Error>> {
         let name = {
             let queries = message.queries();
             if queries.len() != 1 {
@@ -60,17 +52,9 @@ impl SmartResolver {
             let q = &queries[0];
             LowerName::new(q.name())
         };
-        let id = message.id();
 
         let client = self.choose_resolver(&name);
-        let fr = client.resolve(
-            message, &name, use_tcp).map_err(|e| format_err!("resolve error {}", e));
-        let f_id =
-            fr.and_then(move|mut r| {
-                r.set_id(id);
-                Ok(r)
-        });
-        Box::new(f_id)
+        Box::new(      client.resolve(buffer.to_vec(), &name).map_err(|e| e.into()))
     }
 
     fn choose_resolver(&self,name: &LowerName)-> &DnsClient {
