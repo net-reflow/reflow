@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::io;
 use std::io::Read;
 use std::fs;
-use std::net;
 use std::path;
 use std::collections::BTreeMap;
 
@@ -13,15 +12,16 @@ use toml;
 #[derive(Debug)]
 pub struct DnsProxyConf {
     pub listen: SocketAddr,
-    pub resolv: BTreeMap<String, SocketAddr>,
-    pub default: SocketAddr,
+    pub resolv: BTreeMap<String, DnsUpstream>,
+    pub default: DnsUpstream,
 }
 
-#[derive(Deserialize, Debug)]
-struct ConfValue {
-    listen: SocketAddr,
-    servers: BTreeMap<String, net::SocketAddr>,
-    rule: BTreeMap<String, String>,
+/// Address of upstream dns server
+/// with optionally a socks proxy
+#[derive(Deserialize, Debug, Clone)]
+pub struct DnsUpstream {
+    pub addr: SocketAddr,
+    pub socks5: Option<SocketAddr>,
 }
 
 impl DnsProxyConf {
@@ -32,16 +32,25 @@ impl DnsProxyConf {
         let mut contents = String::new();
         bufreader.read_to_string(&mut contents).unwrap();
 
-        let conf: ConfValue = toml::from_str(&contents)?;
-        let servers = conf.servers;
-        let default = conf.rule.get("else").and_then(|s| {
-            servers.get(s)
+        #[derive(Deserialize, Debug)]
+        struct ConfFileContent {
+            listen: SocketAddr,
+            server: BTreeMap<String, DnsUpstream>,
+            rule: BTreeMap<String, String>,
+        }
+
+        let mut conf: ConfFileContent = toml::from_str(&contents)?;
+        println!("cfc {:?}", conf);
+        let servers = conf.server;
+        let default = conf.rule.remove("else").and_then(|s| {
+            servers.get(&s)
         }).ok_or(io::Error::new(io::ErrorKind::NotFound, "no default dns server defined"))?;
         let mut resolv =  BTreeMap::new();
-        for (region, server) in &conf.rule {
-            let server_addr = servers.get(server).ok_or(
-             io::Error::new(io::ErrorKind::NotFound, format!("dns server {} defined", server)))?;
-            resolv.insert(region.clone(), server_addr.clone());
+        for (region, server) in conf.rule {
+            let server_addr = servers.get(&server).ok_or(
+             io::Error::new(io::ErrorKind::NotFound, format!("dns server {} not defined", server)))?;
+            let up: DnsUpstream = server_addr.clone();
+            resolv.insert(region, up);
         }
         Ok(DnsProxyConf {
             listen: conf.listen,

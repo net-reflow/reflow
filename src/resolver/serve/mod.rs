@@ -1,18 +1,14 @@
 mod udp;
 use failure::Error;
 
-use std::net::SocketAddr;
-use std::io;
 use resolver::serve::udp::UdpListener;
 use futures::Stream;
 use futures::Future;
 use futures_cpupool::CpuPool;
-use socks::Socks5Datagram;
 use tokio;
 use std::sync::Arc;
 
 use ruling::DomainMatcher;
-use std::path;
 use resolver::config::DnsProxyConf;
 use resolver::handler;
 

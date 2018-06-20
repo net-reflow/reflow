@@ -1,4 +1,5 @@
 extern crate bytes;
+extern crate byteorder;
 #[macro_use]
 extern crate failure;
 #[macro_use]
@@ -9,6 +10,7 @@ extern crate log;
 extern crate socks;
 #[macro_use] extern crate structopt;
 extern crate tokio;
+extern crate tokio_io;
 extern crate trust_dns;
 extern crate toml;
 extern crate trust_dns_server;

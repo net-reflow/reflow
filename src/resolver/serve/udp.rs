@@ -5,13 +5,9 @@ use std::net::SocketAddr;
 use std::convert::From;
 use std::net::UdpSocket as UdpSocketStd;
 
-use tokio::net::TcpListener;
-use tokio::net::TcpStream;
 use tokio::net::UdpSocket as UdpSocketTokio;
 use tokio::reactor::Handle;
-use futures::{Future, Stream};
-use futures::future::lazy;
-use futures_cpupool::CpuPool;
+use futures::{Stream};
 use futures::Async;
 
 

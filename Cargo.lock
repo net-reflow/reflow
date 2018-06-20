@@ -188,6 +188,7 @@ dependencies = [
 name = "droxy"
 version = "0.1.0"
 dependencies = [
+ "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -200,6 +201,7 @@ dependencies = [
  "socks 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio-io 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "treebitmap 0.2.2",
  "trust-dns 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",

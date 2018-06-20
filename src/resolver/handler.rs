@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
 use failure::Error;
-use failure::err_msg;
 use futures::Future;
 use futures::future;
 
-use trust_dns::error::*;
 use trust_dns::op::Message;
 use trust_dns::rr::LowerName;
 
@@ -29,10 +27,10 @@ impl SmartResolver {
         -> Result<SmartResolver, Error> {
         let rresolvers: Vec<(String, DnsClient)> = regionconf.resolv
             .iter().map(|(r, s)| {
-            let dc = DnsClient::new(s.clone(), None, &pool);
+            let dc = DnsClient::new(s, &pool);
             (r.clone(), dc)
         }).collect();
-        let dresolver = DnsClient::new(regionconf.default.clone(), None, &pool);
+        let dresolver = DnsClient::new(&regionconf.default, &pool);
         Ok(SmartResolver {
             region_resolver: rresolvers,
             default_resolver: dresolver,
@@ -54,7 +52,8 @@ impl SmartResolver {
         };
 
         let client = self.choose_resolver(&name);
-        Box::new(      client.resolve(buffer.to_vec(), &name).map_err(|e| e.into()))
+        debug!("Dns query {:?} using {:?}", name, client);
+        Box::new(client.resolve(buffer.to_vec()).map_err(|e| e.into()))
     }
 
     fn choose_resolver(&self,name: &LowerName)-> &DnsClient {
