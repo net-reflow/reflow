@@ -1,4 +1,5 @@
 use std::time;
+use std::fmt;
 use std::sync::RwLock;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -7,6 +8,13 @@ pub struct FailureCounter{
     fail_count: Arc<AtomicUsize>,
     max_count: usize,
     last_fail_time: RwLock<time::Instant>,
+}
+
+impl fmt::Debug for FailureCounter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let fails = self.fail_count.load(Ordering::Relaxed);
+        write!(f, "FailureCounter({} fails)", fails)
+    }
 }
 
 impl FailureCounter{
@@ -31,7 +39,7 @@ impl FailureCounter{
                 let remainwait = waittimesec.checked_sub(timesincefail);
                 match remainwait {
                     Some(t) => {
-                        eprintln!("should wait {} seconds more", t);
+                        debug!("should wait {} seconds more", t);
                         true
                     }
                     None => {

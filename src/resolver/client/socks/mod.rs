@@ -1,5 +1,7 @@
 use std::io;
+use std::fmt;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use byteorder::{BigEndian,WriteBytesExt,ReadBytesExt};
 use futures::{Future};
@@ -15,12 +17,23 @@ use super::TIMEOUT;
 
 mod fail_count;
 
-#[derive(Debug)]
+use self::fail_count::FailureCounter;
+use super::super::dnsclient::flat_result_future;
+
+/// Do dns queries through a socks5 proxy
 pub struct SockGetterAsync {
     pool: CpuPool,
     proxy: SocketAddr,
     addr: SocketAddr,
+    watcher: Arc<FailureCounter>,
 }
+
+impl fmt::Debug for SockGetterAsync {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Socks({:?})|Dns({:?})", self.proxy, self.addr)
+    }
+}
+
 
 impl SockGetterAsync {
     pub fn new(pool: CpuPool, proxy: SocketAddr, remote: SocketAddr)-> SockGetterAsync {
@@ -28,8 +41,31 @@ impl SockGetterAsync {
             pool: pool,
             proxy: proxy,
             addr: remote,
+            watcher: Arc::new(FailureCounter::new()),
         };
         sga
+    }
+
+    pub fn get(&self, message: Vec<u8>) -> Box<Future<Item=Vec<u8>, Error=io::Error> + Send> {
+        if self.watcher.should_wait() {
+            debug!("{:?} using tcp", self);
+            return flat_result_future(self.get_tcp(message));
+        } else {
+            let f = flat_result_future(self.get_udp(message));
+            let watch = self.watcher.clone();
+            let f =
+                f.then(move |x| match x {
+                    Ok(v) => {
+                        watch.log_success();
+                        Ok(v)
+                    }
+                    Err(e) => {
+                        watch.log_failure();
+                        Err(e)
+                    }
+                });
+            Box::new(f)
+        }
     }
 
     pub fn get_udp(&self, data: Vec<u8>)

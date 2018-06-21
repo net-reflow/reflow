@@ -1,4 +1,3 @@
-extern crate bytes;
 extern crate byteorder;
 #[macro_use]
 extern crate failure;
@@ -13,8 +12,6 @@ extern crate tokio;
 extern crate tokio_io;
 extern crate trust_dns;
 extern crate toml;
-extern crate trust_dns_server;
-extern crate trust_dns_proto;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde;
