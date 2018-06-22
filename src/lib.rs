@@ -1,4 +1,5 @@
 extern crate byteorder;
+extern crate bytes;
 #[macro_use]
 extern crate failure;
 #[macro_use]
@@ -9,7 +10,9 @@ extern crate log;
 extern crate socks;
 #[macro_use] extern crate structopt;
 extern crate tokio;
+#[macro_use]
 extern crate tokio_io;
+extern crate treebitmap;
 extern crate trust_dns;
 extern crate toml;
 #[macro_use]
@@ -23,6 +26,7 @@ use futures::future;
 use structopt::StructOpt;
 use futures_cpupool::CpuPool;
 
+mod relay;
 mod resolver;
 mod ruling;
 mod cmd_options;

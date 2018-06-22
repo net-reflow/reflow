@@ -10,8 +10,7 @@ use std::io;
 use std::io::Read;
 use std::str::FromStr;
 
-use self::treebitmap::IpLookupTable;
-use self::treebitmap::IpLookupTableOps;
+use treebitmap::IpLookupTable;
 use super::util::find_confs;
 use std::path;
 

@@ -108,11 +108,11 @@ impl SockGetterAsync {
         lens.as_mut().write_u16::<BigEndian>(len).expect("byteorder");
         debug!("Sending length {}, {:?}", len, lens);
         let rep =
-            streamf.and_then(move |mut ts| tio::write_all(ts, lens))
-            .and_then(move |(mut ts, _b)| {
+            streamf.and_then(move |ts| tio::write_all(ts, lens))
+            .and_then(move |(ts, _b)| {
                 tio::write_all(ts, data)
             })
-            .and_then(|(mut ts, buf)| {
+            .and_then(|(ts, buf)| {
                 let lb = [0u8; 2];
                 tio::read_exact(ts,lb).map(move |(s, b)| {
                     debug!("Read reply length {:?}", b);
@@ -122,7 +122,7 @@ impl SockGetterAsync {
                     (s, len, buf)
                 })
             })
-            .and_then(|(mut ts, len, mut buf)| {
+            .and_then(|(ts, len, mut buf)| {
                 buf.resize(len as usize, 0);
                 debug!("Resized buf size to {}", buf.len());
                 tio::read_exact(ts, buf)

@@ -5,6 +5,7 @@ authors = ["mut"]
 
 [dependencies]
 byteorder = "1.2.3"
+bytes = "^0.4"
 env_logger = "0.5.*"
 failure = "0.1.1"
 futures = "0.1.20"
@@ -15,7 +16,7 @@ tokio-io = "^0.1"
 radix_trie = "0.1.*"
 socks = "^0.3"
 structopt = "^0"
-treebitmap = { path="../treebitmap" }
+treebitmap = "0.3.1"
 trust-dns = "0.14.0"
 toml = "0.4.2"
 serde_derive = "1.0.21"

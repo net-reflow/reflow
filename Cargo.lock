@@ -189,6 +189,7 @@ name = "droxy"
 version = "0.1.0"
 dependencies = [
  "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytes 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -202,7 +203,7 @@ dependencies = [
  "tokio 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-io 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "treebitmap 0.2.2",
+ "treebitmap 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "trust-dns 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -800,7 +801,8 @@ dependencies = [
 
 [[package]]
 name = "treebitmap"
-version = "0.2.2"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "trust-dns"
@@ -1059,6 +1061,7 @@ dependencies = [
 "checksum tokio-timer 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "028b94314065b90f026a21826cffd62a4e40a92cda3e5c069cc7b02e5945f5e9"
 "checksum tokio-udp 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "137bda266504893ac4774e0ec4c2108f7ccdbcb7ac8dced6305fe9e4e0b5041a"
 "checksum toml 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "a0263c6c02c4db6c8f7681f9fd35e90de799ebd4cfdeab77a38f4ff6b3d8c0d9"
+"checksum treebitmap 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8fa8e0efd5266e8a25b38d91a4d4db019934a131e735147c772979501546f56b"
 "checksum trust-dns 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5a97b39064a4786506e855616a0f8869d461a1cb7449c6064a229eaea4e53b45"
 "checksum trust-dns-proto 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "32d7c204ee231f802aa821f9dc2195aa0d0269ef7e9f8c844208565c9e3981e4"
 "checksum ucd-util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "fd2be2d6639d0f8fe6cdda291ad456e23629558d466e2789d2c3e9892bda285d"
