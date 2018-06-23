@@ -3,10 +3,13 @@
 //! Implements [SOCKS Protocol Version 5](https://www.ietf.org/rfc/rfc1928.txt) proxy protocol
 
 use std::convert::From;
+use std::convert::TryInto;
+use std::convert::TryFrom;
 use std::error;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Cursor, Read};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
+use std::net::Shutdown;
 use std::u8;
 use std::vec;
 
@@ -19,123 +22,27 @@ use futures::{Async, Future, Poll};
 use tokio_io::io::read_exact;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-mod consts {
-    pub const SOCKS5_VERSION:                          u8 = 0x05;
+mod consts;
+pub mod listen;
+mod heads;
 
-    pub const SOCKS5_AUTH_METHOD_NONE:                 u8 = 0x00;
-    pub const SOCKS5_AUTH_METHOD_GSSAPI:               u8 = 0x01;
-    pub const SOCKS5_AUTH_METHOD_PASSWORD:             u8 = 0x02;
-    pub const SOCKS5_AUTH_METHOD_NOT_ACCEPTABLE:       u8 = 0xff;
-
-    pub const SOCKS5_CMD_TCP_CONNECT:                  u8 = 0x01;
-    pub const SOCKS5_CMD_TCP_BIND:                     u8 = 0x02;
-    pub const SOCKS5_CMD_UDP_ASSOCIATE:                u8 = 0x03;
-
-    pub const SOCKS5_ADDR_TYPE_IPV4:                   u8 = 0x01;
-    pub const SOCKS5_ADDR_TYPE_DOMAIN_NAME:            u8 = 0x03;
-    pub const SOCKS5_ADDR_TYPE_IPV6:                   u8 = 0x04;
-
-    pub const SOCKS5_REPLY_SUCCEEDED:                  u8 = 0x00;
-    pub const SOCKS5_REPLY_GENERAL_FAILURE:            u8 = 0x01;
-    pub const SOCKS5_REPLY_CONNECTION_NOT_ALLOWED:     u8 = 0x02;
-    pub const SOCKS5_REPLY_NETWORK_UNREACHABLE:        u8 = 0x03;
-    pub const SOCKS5_REPLY_HOST_UNREACHABLE:           u8 = 0x04;
-    pub const SOCKS5_REPLY_CONNECTION_REFUSED:         u8 = 0x05;
-    pub const SOCKS5_REPLY_TTL_EXPIRED:                u8 = 0x06;
-    pub const SOCKS5_REPLY_COMMAND_NOT_SUPPORTED:      u8 = 0x07;
-    pub const SOCKS5_REPLY_ADDRESS_TYPE_NOT_SUPPORTED: u8 = 0x08;
-}
+use self::consts::Command;
+use self::consts::Reply;
+use tokio::net::TcpStream;
 
 #[derive(Debug, Fail)]
-enum SocksError {
-    #[fail(display = "Not supported address type")]
-    AddressTypeNotSupported,
+pub enum SocksError {
+    #[fail(display = "Not supported socks version {}", ver)]
+    SocksVersionNoSupport { ver: u8 },
+    #[fail(display = "Not supported address type {}", code)]
+    AddressTypeNotSupported { code: u8},
     #[fail(display="Invalid domain name encoding in address")]
     InvalidDomainEncoding,
-    #[fail(display="Unsupported Socks version")]
-    ConnectionRefuse,
-    #[fail(display="Unsupported command")]
-    CommandUnSupport,
+    #[fail(display="No supported auth methods")]
+    NoSupportAuth,
+    #[fail(display="Unsupported command {}", cmd)]
+    CommandUnSupport { cmd: u8 },
 }
-
-/// SOCKS5 command
-#[derive(Clone, Debug, Copy)]
-pub enum Command {
-    /// CONNECT command (TCP tunnel)
-    TcpConnect,
-    /// BIND command (Not supported)
-    TcpBind,
-    /// UDP ASSOCIATE command (Not supported)
-    UdpAssociate,
-}
-
-impl Command {
-    fn as_u8(&self) -> u8 {
-        match *self {
-            Command::TcpConnect   => consts::SOCKS5_CMD_TCP_CONNECT,
-            Command::TcpBind      => consts::SOCKS5_CMD_TCP_BIND,
-            Command::UdpAssociate => consts::SOCKS5_CMD_UDP_ASSOCIATE,
-        }
-    }
-
-    fn from_u8(code: u8) -> Option<Command> {
-        match code {
-            consts::SOCKS5_CMD_TCP_CONNECT   => Some(Command::TcpConnect),
-            consts::SOCKS5_CMD_TCP_BIND      => Some(Command::TcpBind),
-            consts::SOCKS5_CMD_UDP_ASSOCIATE => Some(Command::UdpAssociate),
-            _                                => None,
-        }
-    }
-}
-
-/// SOCKS5 reply code
-#[derive(Clone, Debug, Copy)]
-pub enum Reply {
-    Succeeded,
-    GeneralFailure,
-    ConnectionNotAllowed,
-    NetworkUnreachable,
-    HostUnreachable,
-    ConnectionRefused,
-    TtlExpired,
-    CommandNotSupported,
-    AddressTypeNotSupported,
-
-    OtherReply(u8),
-}
-
-impl Reply {
-    fn as_u8(&self) -> u8 {
-        match *self {
-            Reply::Succeeded               => consts::SOCKS5_REPLY_SUCCEEDED,
-            Reply::GeneralFailure          => consts::SOCKS5_REPLY_GENERAL_FAILURE,
-            Reply::ConnectionNotAllowed    => consts::SOCKS5_REPLY_CONNECTION_NOT_ALLOWED,
-            Reply::NetworkUnreachable      => consts::SOCKS5_REPLY_NETWORK_UNREACHABLE,
-            Reply::HostUnreachable         => consts::SOCKS5_REPLY_HOST_UNREACHABLE,
-            Reply::ConnectionRefused       => consts::SOCKS5_REPLY_CONNECTION_REFUSED,
-            Reply::TtlExpired              => consts::SOCKS5_REPLY_TTL_EXPIRED,
-            Reply::CommandNotSupported     => consts::SOCKS5_REPLY_COMMAND_NOT_SUPPORTED,
-            Reply::AddressTypeNotSupported => consts::SOCKS5_REPLY_ADDRESS_TYPE_NOT_SUPPORTED,
-            Reply::OtherReply(c)           => c,
-        }
-    }
-
-    fn from_u8(code: u8) -> Reply {
-        match code {
-            consts::SOCKS5_REPLY_SUCCEEDED                  => Reply::Succeeded,
-            consts::SOCKS5_REPLY_GENERAL_FAILURE            => Reply::GeneralFailure,
-            consts::SOCKS5_REPLY_CONNECTION_NOT_ALLOWED     => Reply::ConnectionNotAllowed,
-            consts::SOCKS5_REPLY_NETWORK_UNREACHABLE        => Reply::NetworkUnreachable,
-            consts::SOCKS5_REPLY_HOST_UNREACHABLE           => Reply::HostUnreachable,
-            consts::SOCKS5_REPLY_CONNECTION_REFUSED         => Reply::ConnectionRefused,
-            consts::SOCKS5_REPLY_TTL_EXPIRED                => Reply::TtlExpired,
-            consts::SOCKS5_REPLY_COMMAND_NOT_SUPPORTED      => Reply::CommandNotSupported,
-            consts::SOCKS5_REPLY_ADDRESS_TYPE_NOT_SUPPORTED => Reply::AddressTypeNotSupported,
-            _                                               => Reply::OtherReply(code),
-        }
-    }
-}
-
 
 /// SOCKS5 address type
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -152,9 +59,12 @@ impl Address {
         ReadAddress::new(stream)
     }
 
-    #[inline]
-    pub fn len(&self) -> usize {
-        get_addr_len(self)
+    fn len(&self) -> usize {
+        match *self {
+            Address::SocketAddress(SocketAddr::V4(..)) => 1 + 4 + 2,
+            Address::SocketAddress(SocketAddr::V6(..)) => 1 + 8 * 2 + 2,
+            Address::DomainNameAddress(ref dmname, _) => 1 + 1 + dmname.len() + 2,
+        }
     }
 }
 
@@ -260,21 +170,17 @@ impl<R> ReadAddress<R>
             r.read_u8()
         };
         let addr_type = try_nb!(b);
-        match addr_type {
-            consts::SOCKS5_ADDR_TYPE_IPV4 => {
+        match addr_type.try_into()? {
+            consts::AddrType::IPV4 => {
                 self.state = ReadAddressState::ReadingIpv4;
                 self.alloc_buf(6);
             }
-            consts::SOCKS5_ADDR_TYPE_IPV6 => {
+            consts::AddrType::IPV6 => {
                 self.state = ReadAddressState::ReadingIpv6;
                 self.alloc_buf(18);
             }
-            consts::SOCKS5_ADDR_TYPE_DOMAIN_NAME => {
+            consts::AddrType::DomainName => {
                 self.state = ReadAddressState::ReadingDomainNameLength;
-            }
-            _ => {
-                error!("Invalid address type {}", addr_type);
-                return Err(SocksError::AddressTypeNotSupported.into());
             }
         };
 
@@ -370,15 +276,6 @@ impl<R> ReadAddress<R>
     }
 }
 
-#[inline]
-fn get_addr_len(atyp: &Address) -> usize {
-    match *atyp {
-        Address::SocketAddress(SocketAddr::V4(..)) => 1 + 4 + 2,
-        Address::SocketAddress(SocketAddr::V6(..)) => 1 + 8 * 2 + 2,
-        Address::DomainNameAddress(ref dmname, _) => 1 + 1 + dmname.len() + 2,
-    }
-}
-
 /// TCP request header after handshake
 ///
 /// ```plain
@@ -411,16 +308,11 @@ impl TcpRequestHeader {
             .and_then(|(r, buf)| {
                 let ver = buf[0];
                 if ver != consts::SOCKS5_VERSION {
-                    return Err(SocksError::ConnectionRefuse.into());
+                    return Err(SocksError::SocksVersionNoSupport {ver}.into());
                 }
 
                 let cmd = buf[1];
-                let command = match Command::from_u8(cmd) {
-                    Some(c) => c,
-                    None => {
-                        return Err(SocksError::CommandUnSupport.into())
-                    }
-                };
+                let command = Command::try_from(cmd)?;
 
                 Ok((r, command))
             })
@@ -493,29 +385,33 @@ impl HandshakeRequest {
         HandshakeRequest { methods: methods }
     }
 
-    /// Read from a reader
-    pub fn read_from<R>(r: R) -> impl Future<Item = (R, HandshakeRequest), Error = io::Error>
-        where R: AsyncRead + Send + 'static
-    {
-        read_exact(r, [0u8, 0u8]).and_then(|(r, buf)| {
-            let ver = buf[0];
-            let nmet = buf[1];
-
-            if ver != consts::SOCKS5_VERSION {
-                return Err(io::Error::new(io::ErrorKind::Other,
-                                          "Invalid Socks5 version"));
-            }
-
-            Ok((r, nmet))
-        })
-            .and_then(|(r, nmet)| read_exact(r, vec![0u8; nmet as usize]))
-            .and_then(|(r, methods)| Ok((r, HandshakeRequest { methods: methods })))
-    }
 
     /// Get length of bytes
     pub fn len(&self) -> usize {
         2 + self.methods.len()
     }
+}
+
+/// Read from a reader
+pub fn read_handshake_request(s: TcpStream)
+    -> impl Future<Item = (TcpStream, HandshakeRequest), Error = Error>  {
+    read_exact(s, [0u8, 0u8])
+        .map_err(|e| e.into())
+        .and_then(|(r, buf)| {
+        let ver = buf[0];
+        let nmet = buf[1];
+
+        if ver != consts::SOCKS5_VERSION {
+            r.shutdown(Shutdown::Both)?;
+            return Err(SocksError::SocksVersionNoSupport {ver: ver}.into());
+        }
+
+        Ok((r, nmet))
+    })
+        .and_then(|(r, nmet)| {
+            read_exact(r, vec![0u8; nmet as usize]).map_err(|e| e.into())
+        })
+        .and_then(|(r, methods)| Ok((r, HandshakeRequest { methods: methods })))
 }
 
 /// SOCKS5 handshake response packet

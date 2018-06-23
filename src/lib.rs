@@ -1,3 +1,5 @@
+#![feature(try_from)]
+
 extern crate byteorder;
 extern crate bytes;
 #[macro_use]
@@ -22,16 +24,20 @@ extern crate env_logger;
 
 use std::error::Error;
 use std::sync::Arc;
+use std::str::FromStr;
 use futures::future;
 use structopt::StructOpt;
 use futures_cpupool::CpuPool;
 
+mod proto;
 mod relay;
 mod resolver;
 mod ruling;
 mod cmd_options;
 
 use resolver::config::DnsProxyConf;
+use proto::socks::listen::listen;
+use std::net::SocketAddr;
 
 pub fn run()-> Result<(), Box<Error>> {
     env_logger::Builder::from_default_env()
@@ -47,6 +53,8 @@ pub fn run()-> Result<(), Box<Error>> {
 
     let conf = DnsProxyConf::new(config_path)?;
     tokio::run( future::lazy(move || {
+        let a = SocketAddr::from_str("0.0.0.0:32984").unwrap();
+        listen(&a).expect("sock listen err");
         let ds = resolver::serve(d.clone(), conf, pool);
         if let Err(e) = ds {
             error!("Dns server error: {:?}", e);
