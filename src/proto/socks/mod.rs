@@ -25,6 +25,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 mod consts;
 pub mod listen;
 mod heads;
+mod codec;
 
 use self::consts::Command;
 use self::consts::Reply;
@@ -371,25 +372,12 @@ impl TcpResponseHeader {
 /// +----+----------+----------+
 /// |VER | NMETHODS | METHODS  |
 /// +----+----------+----------+
-/// | 5  |    1     | 1 to 255 |
+/// |'05'|    1     | 1 to 255 |
 /// +----+----------+----------|
 /// ```
 #[derive(Clone, Debug)]
 pub struct HandshakeRequest {
     pub methods: Vec<u8>,
-}
-
-impl HandshakeRequest {
-    /// Creates a handshake request
-    pub fn new(methods: Vec<u8>) -> HandshakeRequest {
-        HandshakeRequest { methods: methods }
-    }
-
-
-    /// Get length of bytes
-    pub fn len(&self) -> usize {
-        2 + self.methods.len()
-    }
 }
 
 /// Read from a reader
@@ -426,32 +414,4 @@ pub fn read_handshake_request(s: TcpStream)
 #[derive(Clone, Debug, Copy)]
 pub struct HandshakeResponse {
     pub chosen_method: u8,
-}
-
-impl HandshakeResponse {
-    /// Creates a handshake response
-    pub fn new(cm: u8) -> HandshakeResponse {
-        HandshakeResponse { chosen_method: cm }
-    }
-
-    /// Read from a reader
-    pub fn read_from<R>(r: R) -> impl Future<Item = (R, HandshakeResponse), Error = io::Error>
-        where R: AsyncRead + Send + 'static
-    {
-        read_exact(r, [0u8, 0u8]).and_then(|(r, buf)| {
-            let ver = buf[0];
-            let met = buf[1];
-
-            if ver != consts::SOCKS5_VERSION {
-                Err(io::Error::new(io::ErrorKind::Other, "Invalid Socks5 version"))
-            } else {
-                Ok((r, HandshakeResponse { chosen_method: met }))
-            }
-        })
-    }
-
-    /// Length in bytes
-    pub fn len(&self) -> usize {
-        2
-    }
 }

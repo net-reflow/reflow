@@ -36,7 +36,7 @@ mod ruling;
 mod cmd_options;
 
 use resolver::config::DnsProxyConf;
-use proto::socks::listen::listen;
+use relay::incoming::listen_socks;
 use std::net::SocketAddr;
 
 pub fn run()-> Result<(), Box<Error>> {
@@ -54,7 +54,7 @@ pub fn run()-> Result<(), Box<Error>> {
     let conf = DnsProxyConf::new(config_path)?;
     tokio::run( future::lazy(move || {
         let a = SocketAddr::from_str("0.0.0.0:32984").unwrap();
-        listen(&a).expect("sock listen err");
+        listen_socks(&a).expect("sock listen err");
         let ds = resolver::serve(d.clone(), conf, pool);
         if let Err(e) = ds {
             error!("Dns server error: {:?}", e);

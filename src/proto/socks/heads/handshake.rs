@@ -27,6 +27,6 @@ fn write_socks_response(s: TcpStream, meth: AuthMethod) -> impl Future<Item=TcpS
     let mut buf = BytesMut::with_capacity(2);
     buf.put_slice(&[consts::SOCKS5_VERSION as u8, meth as u8]);
     write_all(s, buf)
-        .map(|(s,b)| s)
+        .map(|(s, _b)| s)
         .map_err(|e| e.into())
 }
