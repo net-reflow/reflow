@@ -16,6 +16,7 @@ extern crate tokio;
 extern crate tokio_io;
 extern crate treebitmap;
 extern crate trust_dns;
+extern crate trust_dns_resolver;
 extern crate toml;
 #[macro_use]
 extern crate serde_derive;
@@ -36,7 +37,7 @@ mod ruling;
 mod cmd_options;
 
 use resolver::config::DnsProxyConf;
-use relay::incoming::listen_socks;
+use relay::run_with_conf;
 use std::net::SocketAddr;
 
 pub fn run()-> Result<(), Box<Error>> {
@@ -45,6 +46,7 @@ pub fn run()-> Result<(), Box<Error>> {
         .init();
     let opt = cmd_options::Opt::from_args();
     let config_path = &opt.config;
+    let conf1 = config_path.clone();
     let pool = CpuPool::new_num_cpus();
 
     let ruler = ruling::DomainMatcher::new(config_path)?;
@@ -53,8 +55,9 @@ pub fn run()-> Result<(), Box<Error>> {
 
     let conf = DnsProxyConf::new(config_path)?;
     tokio::run( future::lazy(move || {
-        let a = SocketAddr::from_str("0.0.0.0:32984").unwrap();
-        listen_socks(&a).expect("sock listen err");
+        if let Err(e) = run_with_conf(&conf1) {
+            error!("Relay error: {:?}", e);
+        }
         let ds = resolver::serve(d.clone(), conf, pool);
         if let Err(e) = ds {
             error!("Dns server error: {:?}", e);

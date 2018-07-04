@@ -27,7 +27,7 @@ pub mod listen;
 mod heads;
 mod codec;
 
-use self::consts::Command;
+pub use self::consts::Command;
 use self::consts::Reply;
 use tokio::net::TcpStream;
 

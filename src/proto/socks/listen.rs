@@ -13,9 +13,10 @@ use super::consts::{AuthMethod};
 use super::heads::handle_socks_head;
 use super::heads::read_command;
 use std::io;
+use proto::socks::TcpRequestHeader;
 
 pub fn listen(addr: &SocketAddr)
-    ->Result<impl Stream<Item=impl Future<Item=TcpStream,Error=Error>, Error=io::Error>, io::Error> {
+    ->Result<impl Stream<Item=impl Future<Item=Incoming,Error=Error>, Error=io::Error>, io::Error> {
     let l = tokio::net::TcpListener::bind(addr)?;
     let f =
         l.incoming().map_err(|e| e.into())
@@ -27,14 +28,18 @@ pub fn listen(addr: &SocketAddr)
     Ok(f)
 }
 
-fn handle_handshake(ts: TcpStream, peer: SocketAddr) -> impl Future<Item=TcpStream, Error=Error> {
+pub struct Incoming {
+    pub stream: TcpStream,
+    pub req: TcpRequestHeader,
+}
+
+fn handle_handshake(ts: TcpStream, peer: SocketAddr) -> impl Future<Item=Incoming, Error=Error> {
     read_handshake_request(ts).and_then(|(s, h)| {
         handle_socks_head(s, h)
     })
         .and_then(move|s: TcpStream| {
             read_command(s, peer).map(|(s,h)| {
-                debug!("command: {:?}", h);
-                s
+                Incoming { stream: s, req: h}
             })
         })
 }

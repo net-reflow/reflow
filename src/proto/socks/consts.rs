@@ -13,7 +13,7 @@ pub enum AuthMethod {
     NotAcceptable = 0xff,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Command {
     TcpConnect = 0x01,
     TcpBind = 0x02,
