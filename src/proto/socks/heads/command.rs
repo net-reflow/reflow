@@ -1,7 +1,5 @@
 use std::convert::TryInto;
-use tokio::io::AsyncRead;
 use futures::Future;
-use futures::future;
 use futures::future::Either;
 use failure::Error;
 use tokio_io::io::read_exact;
@@ -10,7 +8,6 @@ use tokio_io::io::write_all;
 use proto::socks::TcpRequestHeader;
 use proto::socks::consts;
 use proto::socks::SocksError;
-use proto::socks::consts::Command;
 use proto::socks::Address;
 use std::net::Shutdown;
 use tokio::net::TcpStream;

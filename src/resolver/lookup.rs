@@ -1,11 +1,10 @@
-use std::io;
 use std::net::SocketAddr;
-use tokio::runtime::current_thread::Runtime;
+use futures::Future;
 use trust_dns_resolver::ResolverFuture;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::config::{NameServerConfig, Protocol};
 
-fn new_resolver(addr: SocketAddr) -> Result<ResolverFuture, io::Error> {
+pub fn create_resolver(addr: SocketAddr) -> ResolverFuture {
     let nc = NameServerConfig {
         socket_addr: addr,
         protocol: Protocol::Udp,
@@ -13,7 +12,5 @@ fn new_resolver(addr: SocketAddr) -> Result<ResolverFuture, io::Error> {
     };
     let conf = ResolverConfig::from_parts(None, vec![], vec![nc]);
     let r = ResolverFuture::new(conf, ResolverOpts::default());
-    let mut rt = Runtime::new().unwrap();
-    let r = rt.block_on(r).expect("rf");
-    Ok(r)
+    r.wait().expect("Can't get ResolverFuture")
 }

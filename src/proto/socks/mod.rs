@@ -5,22 +5,20 @@
 use std::convert::From;
 use std::convert::TryInto;
 use std::convert::TryFrom;
-use std::error;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Cursor, Read};
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::net::Shutdown;
 use std::u8;
-use std::vec;
 
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use bytes::{BufMut, Bytes, BytesMut, IntoBuf};
+use byteorder::{BigEndian, ReadBytesExt};
+use bytes::{Bytes, BytesMut, IntoBuf};
 
 use failure::Error;
 use futures::{Async, Future, Poll};
 
 use tokio_io::io::read_exact;
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_io::{AsyncRead};
 
 mod consts;
 pub mod listen;
@@ -28,6 +26,7 @@ mod heads;
 mod codec;
 
 pub use self::consts::Command;
+
 use self::consts::Reply;
 use tokio::net::TcpStream;
 
@@ -75,16 +74,6 @@ impl Debug for Address {
         match *self {
             Address::SocketAddress(ref addr) => write!(f, "{}", addr),
             Address::DomainNameAddress(ref addr, ref port) => write!(f, "{}:{}", addr, port),
-        }
-    }
-}
-
-impl ToSocketAddrs for Address {
-    type Iter = vec::IntoIter<SocketAddr>;
-    fn to_socket_addrs(&self) -> io::Result<vec::IntoIter<SocketAddr>> {
-        match self.clone() {
-            Address::SocketAddress(addr) => Ok(vec![addr].into_iter()),
-            Address::DomainNameAddress(addr, port) => (&addr[..], port).to_socket_addrs(),
         }
     }
 }

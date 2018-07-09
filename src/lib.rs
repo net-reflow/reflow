@@ -25,10 +25,11 @@ extern crate env_logger;
 
 use std::error::Error;
 use std::sync::Arc;
-use std::str::FromStr;
 use futures::future;
+use futures::Future;
 use structopt::StructOpt;
 use futures_cpupool::CpuPool;
+use tokio::runtime::Runtime;
 
 mod proto;
 mod relay;
@@ -38,7 +39,6 @@ mod cmd_options;
 
 use resolver::config::DnsProxyConf;
 use relay::run_with_conf;
-use std::net::SocketAddr;
 
 pub fn run()-> Result<(), Box<Error>> {
     env_logger::Builder::from_default_env()
@@ -54,7 +54,8 @@ pub fn run()-> Result<(), Box<Error>> {
     let d = Arc::new(ruler);
 
     let conf = DnsProxyConf::new(config_path)?;
-    tokio::run( future::lazy(move || {
+    let mut rt = Runtime::new()?;
+    rt.spawn( future::lazy(move || {
         if let Err(e) = run_with_conf(&conf1) {
             error!("Relay error: {:?}", e);
         }
@@ -64,5 +65,6 @@ pub fn run()-> Result<(), Box<Error>> {
         }
         Ok::<_, ()>(())
     }));
+    rt.shutdown_on_idle().wait().expect("Can't wait tokio runtime");
     Ok(())
 }

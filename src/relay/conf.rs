@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::path;
 use failure::Error;
 use std::fs;
-use std::io;
 use toml;
 
 #[derive(Deserialize, Debug, Clone)]

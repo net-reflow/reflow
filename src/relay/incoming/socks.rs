@@ -1,21 +1,27 @@
 use proto::socks::listen::listen;
 use std::net::SocketAddr;
-use std::net::ToSocketAddrs;
+use std::sync::Arc;
 use failure::Error;
-use futures::{Stream, Future, future, future::Either};
+use futures::{Stream, Future};
 use tokio;
-use tokio_io::io::copy;
-use tokio_io::AsyncRead;
-use proto::socks::listen::Incoming;
-use proto::socks::{Command, SocksError};
-use proto::socks::Address;
-use tokio::io::AsyncWrite;
+use trust_dns_resolver::ResolverFuture;
 
-pub fn listen_socks(addr: &SocketAddr)->Result<(), Error >{
+use relay::forwarding::handle_incoming_tcp;
+use futures::future::Either;
+use futures::future;
+use tokio::net::TcpStream;
+use proto::socks::Command;
+use proto::socks::Address;
+use proto::socks::SocksError;
+use proto::socks::TcpRequestHeader;
+
+pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>)->Result<(), Error >{
     let fut =
-        listen(addr)?.for_each(|s| {
+        listen(addr)?.for_each(move|s| {
+            let r1 = resolver.clone();
             let f =
-                s.and_then(|i| handle_incoming(i))
+                s.and_then(move|(s,h)| read_address(s, h, r1.clone()))
+                .and_then(|(s,a)| handle_incoming_tcp(s, &a))
                     .map_err(|e| error!("error handling client {:?}", e));
             tokio::spawn(f);
             Ok(())
@@ -24,35 +30,25 @@ pub fn listen_socks(addr: &SocketAddr)->Result<(), Error >{
     Ok(())
 }
 
-fn handle_incoming(incom: Incoming)-> impl Future<Item=(), Error=Error> {
-    let c = incom.req.command;
-    let a = match get_addr(c, &incom.req.address) {
-        Ok(a) => a,
-        Err(e) => return Either::A(future::err(e)),
-    };
-    let s = tokio::net::TcpStream::connect(&a);
-    let f = s.and_then(|stream| {
-        let (ur, uw) = stream.split();
-        let (cr, cw) = incom.stream.split();
-        tokio::spawn(run_copy(ur, cw));
-        tokio::spawn(run_copy(cr, uw));
-        Ok(())
-    }).map_err(|e| e.into());
-    Either::B(f)
-}
-
-fn run_copy<R, W>(reader: R, writer: W) -> impl Future<Item=(), Error=()>
-    where R: AsyncRead,
-          W: AsyncWrite, {
-    copy(reader, writer).map(|_x| ())
-        .map_err(|e| error!("Error copying {:?}", e))
-}
-
-fn get_addr(c: Command, addr: &Address)-> Result<SocketAddr, Error> {
+fn read_address(stream:TcpStream, head: TcpRequestHeader, resolver: Arc<ResolverFuture>)-> impl Future<Item=(TcpStream, SocketAddr), Error=Error> {
+    let c = head.command;
     if c != Command::TcpConnect {
-        return Err(SocksError::CommandUnSupport { cmd: c as u8}.into());
+        return Either::A(future::err(SocksError::CommandUnSupport { cmd: c as u8}.into()));
     }
-    let mut addrs = addr.to_socket_addrs()?;
-    let a = addrs.nth(0).ok_or(format_err!("No address for {:?}", addr))?;
-    Ok(a)
+    match head.address {
+        Address::SocketAddress(a) => return Either::A(future::ok((stream, a))),
+        Address::DomainNameAddress(domain, port) => {
+            Either::B(resolver.lookup_ip(&*domain)
+                .then(move |res| {
+                    match res {
+                        Ok(lookup) => lookup.iter().next().ok_or_else(||format_err!("No address found for domain {}", domain)),
+                        Err(e) => Err(format_err!("Error resolving {}: {:?}", domain, e)),
+                    }
+                })
+                .map(move |ip| {
+                (stream, SocketAddr::new(ip, port))
+            }))
+        }
+    }
 }
+
