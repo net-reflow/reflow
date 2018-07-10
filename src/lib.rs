@@ -7,6 +7,7 @@ extern crate failure;
 #[macro_use]
 extern crate futures;
 extern crate futures_cpupool;
+extern crate httparse;
 #[macro_use]
 extern crate log;
 extern crate socks;

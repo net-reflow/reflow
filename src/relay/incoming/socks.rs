@@ -22,7 +22,7 @@ pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>)->Result<()
             let f =
                 s.and_then(move|(s,h)| read_address(s, h, r1.clone()))
                 .and_then(|(s,a)| handle_incoming_tcp(s, a))
-                    .map_err(|e| error!("error handling client {:?}", e));
+                    .map_err(|e| error!("error handling client {}", e));
             tokio::spawn(f);
             Ok(())
         }).map_err(|e| error!("Listen error {:?}", e));

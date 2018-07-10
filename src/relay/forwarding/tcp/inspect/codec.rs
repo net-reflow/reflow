@@ -5,6 +5,7 @@ use tokio::io::AsyncRead;
 use bytes::BytesMut;
 use futures::Async;
 use futures::Stream;
+use std::borrow::Borrow;
 use std::io;
 use std::mem;
 use futures::Future;
@@ -12,6 +13,7 @@ use failure::Error;
 
 use super::InspectedTcp;
 use super::TcpTrafficInfo;
+use relay::forwarding::tcp::inspect::parse::guess_bytes;
 
 pub struct ReadGuessHead {
     state: ReadGuessHeadState
@@ -43,28 +45,37 @@ impl Future for ReadGuessHead {
     fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
         loop {
             // First, read some data
-            let (n, rdlen) = {
+            let n = {
                 let (mut socket, mut rd) = match self.state {
                     ReadGuessHeadState::Reading {ref mut socket, ref mut rd} => (socket, rd),
                     _ => panic!("poll after finish"),
                 };
                 rd.reserve(1024);
-                (try_ready!(socket.read_buf(&mut rd)), rd.len())
+                try_ready!(socket.read_buf(&mut rd))
             };
-            
-            if rdlen> 10 {
+
+            let guess = {
+                match self.state {
+                    ReadGuessHeadState::Reading {socket: ref _s, ref rd} => {
+                        guess_bytes(&rd)
+                    }
+                    _ => panic!("poll after finish"),
+                }
+            };
+
+            if let Some(info) = guess {
+                debug!("guessed {:?}", info);
                 let s = mem::replace(&mut self.state, ReadGuessHeadState::Finished);
                 let (socket, rd) = match s {
                     ReadGuessHeadState::Reading {socket, rd} => (socket, rd),
                     _ => panic!("poll after finish"),
                 };
                 let line = rd;
-                debug!("Read head > 10: {:?}", line);
 
                 let tcp = InspectedTcp {
                     stream: socket,
                     bytes: line,
-                    kind: TcpTrafficInfo {},
+                    kind: info,
                 };
                 // Return the line
                 return Ok(Async::Ready(tcp));

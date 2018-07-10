@@ -7,9 +7,29 @@ use bytes::BytesMut;
 use bytes::Bytes;
 
 mod codec;
+mod parse;
 use self::codec::ReadGuessHead;
 
-struct TcpTrafficInfo {
+#[derive(Debug)]
+pub enum  TcpTrafficInfo {
+    PlainHttp(HttpInfo),
+    SSH,
+    Unidentified,
+}
+
+#[derive(Debug)]
+pub struct HttpInfo {
+    host: String,
+    user_agent: Option<String>,
+}
+
+impl HttpInfo {
+    pub fn new(h: &[u8], ua: Option<&[u8]>)-> HttpInfo {
+        HttpInfo {
+            host: String::from_utf8_lossy(h).into(),
+            user_agent: ua.map(|b| String::from_utf8_lossy(b).into(),),
+        }
+    }
 }
 
 pub struct InspectedTcp {
