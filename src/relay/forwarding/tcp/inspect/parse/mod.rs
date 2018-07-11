@@ -1,6 +1,8 @@
 use bytes::BytesMut;
 use httparse;
 
+mod tls;
+
 use relay::forwarding::tcp::inspect::TcpTrafficInfo;
 use super::HttpInfo;
 

@@ -10,6 +10,8 @@ extern crate futures_cpupool;
 extern crate httparse;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate nom;
 extern crate socks;
 #[macro_use] extern crate structopt;
 extern crate tokio;

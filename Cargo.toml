@@ -12,6 +12,7 @@ futures = "0.1.20"
 futures-cpupool = "^0"
 httparse = "^1.0"
 log = "^0.4"
+nom = {version = "^4.0", features=["verbose-errors"] }
 tokio = "0.1.6"
 tokio-io = "^0.1"
 radix_trie = "0.1.*"
