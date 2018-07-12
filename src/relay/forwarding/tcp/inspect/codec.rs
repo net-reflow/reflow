@@ -4,15 +4,11 @@ use tokio::net::TcpStream;
 use tokio::io::AsyncRead;
 use bytes::BytesMut;
 use futures::Async;
-use futures::Stream;
-use std::borrow::Borrow;
-use std::io;
 use std::mem;
 use futures::Future;
 use failure::Error;
 
 use super::InspectedTcp;
-use super::TcpTrafficInfo;
 use relay::forwarding::tcp::inspect::parse::guess_bytes;
 
 pub struct ReadGuessHead {

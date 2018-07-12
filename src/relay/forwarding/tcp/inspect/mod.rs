@@ -4,7 +4,6 @@ use tokio::net::TcpStream;
 use futures::Future;
 use failure::Error;
 use bytes::BytesMut;
-use bytes::Bytes;
 
 mod codec;
 mod parse;
@@ -37,6 +36,7 @@ pub struct InspectedTcp {
     pub stream: TcpStream,
     /// bytes read
     pub bytes: BytesMut,
+    #[allow(dead_code)]
     kind: TcpTrafficInfo,
 }
 

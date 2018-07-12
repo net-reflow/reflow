@@ -4,7 +4,6 @@
 
 use std::convert::From;
 use std::convert::TryInto;
-use std::convert::TryFrom;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self, Cursor, Read};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -281,47 +280,6 @@ pub struct TcpRequestHeader {
     pub command: Command,
     /// Remote address
     pub address: Address,
-}
-
-impl TcpRequestHeader {
-    /// Creates a request header
-    pub fn new(cmd: Command, addr: Address) -> TcpRequestHeader {
-        TcpRequestHeader { command: cmd,
-            address: addr, }
-    }
-
-    /// Read from a reader
-    pub fn read_from<R>(r: R) -> impl Future<Item = (R, TcpRequestHeader), Error = Error> + Send
-        where R: AsyncRead + Send + 'static
-    {
-        read_exact(r, [0u8; 3]).map_err(From::from)
-            .and_then(|(r, buf)| {
-                let ver = buf[0];
-                if ver != consts::SOCKS5_VERSION {
-                    return Err(SocksError::SocksVersionNoSupport {ver}.into());
-                }
-
-                let cmd = buf[1];
-                let command = Command::try_from(cmd)?;
-
-                Ok((r, command))
-            })
-            .and_then(|(r, command)| {
-                Address::read_from(r).map(move |(conn, address)| {
-                    let header =
-                        TcpRequestHeader { command: command,
-                            address: address, };
-
-                    (conn, header)
-                })
-            })
-    }
-
-    /// Length in bytes
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.address.len() + 3
-    }
 }
 
 /// TCP response header

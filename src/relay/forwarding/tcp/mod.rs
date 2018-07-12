@@ -1,5 +1,4 @@
 use tokio::net::TcpStream;
-use proto::socks::TcpRequestHeader;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio_io::io::copy;
