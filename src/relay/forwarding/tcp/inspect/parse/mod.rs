@@ -1,16 +1,35 @@
 use bytes::BytesMut;
 use httparse;
+use std::net::SocketAddr;
 
 mod tls;
 
-use self::tls::TlsClientHello;
-use std::borrow::Cow;
+use self::tls::TlsWithSni;
+use std::borrow::{Cow, Borrow};
+use super::super::super::routing::RoutingDecision;
 
 #[derive(Debug)]
-pub enum TcpTrafficInfo<'a> {
+pub struct  TcpTrafficInfo<'a> {
+    addr: SocketAddr,
+    protocol: TcpProtocol<'a>,
+}
+
+impl<'a> TcpTrafficInfo<'a> {
+    pub fn get_domain(&self)-> Option<&Cow<str>> {
+        use self::TcpProtocol::*;
+        match &self.protocol {
+            PlainHttp(x) => Some(&x.host),
+            Tls(x) => Some(&x.sni),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum TcpProtocol<'a> {
     PlainHttp(HttpInfo<'a>),
     SSH,
-    Tls(TlsClientHello<'a>),
+    Tls(TlsWithSni<'a>),
     Unidentified,
 }
 
@@ -29,17 +48,23 @@ impl<'a> HttpInfo<'a> {
     }
 }
 
-pub fn route(bytes: &BytesMut)-> Option<String> {
-    guess_bytes(bytes).map(|k| format!("{:?}", k))
+pub fn route(bytes: &BytesMut, addr: SocketAddr)-> Option<RoutingDecision> {
+    guess_bytes(bytes, addr).map(|k | {
+        let _tcp_info = TcpTrafficInfo {
+            addr,
+            protocol: k,
+        };
+        RoutingDecision::direct()
+    })
 }
 
-fn guess_bytes(bytes: &BytesMut) ->Option<TcpTrafficInfo> {
+fn guess_bytes(bytes: &BytesMut, addr: SocketAddr) ->Option<TcpProtocol> {
     debug!("bytes {:?}", bytes);
-    if let Some(h) = guess_http(bytes) { return Some(TcpTrafficInfo::PlainHttp(h)) }
+    if let Some(h) = guess_http(bytes) { return Some(TcpProtocol::PlainHttp(h)) }
     if bytes.starts_with(b"SSH-2.0") && bytes.ends_with(b"\r\n") {
-        return Some(TcpTrafficInfo::SSH);
+        return Some(TcpProtocol::SSH);
     }
-    return Some(TcpTrafficInfo::Unidentified);
+    return Some(TcpProtocol::Unidentified);
 }
 
 fn guess_http(bytes: &BytesMut)->Option<HttpInfo> {

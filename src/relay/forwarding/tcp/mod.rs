@@ -9,11 +9,11 @@ use failure::Error;
 use std::net::SocketAddr;
 
 mod inspect;
-use self::inspect::inspect_tcp;
+use self::inspect::RouteByHeader;
 pub use self::inspect::TcpTrafficInfo;
 
 pub fn handle_incoming_tcp(client_stream: TcpStream, a: SocketAddr)-> impl Future<Item=(), Error=Error> {
-    inspect_tcp(client_stream).and_then(move|tcp| {
+    RouteByHeader::new(client_stream, a).and_then(move|tcp| {
         let client_stream = tcp.stream;
         let data = tcp.bytes;
         let s = tokio::net::TcpStream::connect(&a).map_err(|e| e.into());

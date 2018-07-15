@@ -6,6 +6,14 @@ mod sni;
 use self::sni::{parse_tls_extension, TlsExtension};
 use std::borrow::Cow;
 
+/// Tls connection that can be recognized to some extent
+#[derive(Debug)]
+pub struct TlsWithSni<'a> {
+    /// only possibly useful fields are included here
+    pub version: TlsVersion,
+    pub sni: Cow<'a, str>,
+}
+
 /// Content type, as defined in IANA TLS ContentType registry
 const TLS_RECORD_TYPE_HANDSHAKE: u8 = 0x16;
 
