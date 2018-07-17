@@ -33,6 +33,19 @@ pub enum TcpProtocol<'a> {
     Unidentified,
 }
 
+impl<'a> TcpProtocol<'a> {
+    /// for matching keys in a dictionary
+    pub fn variant_name(&self)-> &'static str {
+        use self::TcpProtocol::*;
+        match &self {
+            PlainHttp(_) => "http",
+            SSH => "ssh",
+            Tls(_) => "tls",
+            Unidentified => "unidentified",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct HttpInfo<'a> {
     host: Cow<'a, str>,

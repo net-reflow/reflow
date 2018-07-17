@@ -12,29 +12,41 @@ use nom::{
     not_line_ending,
     newline,
     space0,
+    space1,
 };
-use super::{RoutingCondition, RoutingAction};
+use super::{
+    RoutingAction,
+    RoutingBranch,
+    RoutingCondition,
+    RoutingDecision
+};
 
-named!(get_reflow<&[u8], BTreeMap<String, RoutingAction> >,
+named!(get_reflow<&[u8], RoutingCondition>,
     do_parse!(
         tag_s!("Tree-Format: reflow 0.1") >>
         newline_maybe_space >>
-        d: dbg_dmp!(get_domain ) >>
+        d: dbg_dmp!(read_cond ) >>
         ( d )
     )
 );
 
-named!(read_map<&[u8], BTreeMap<String, RoutingAction> > ,
+named!(read_cond<&[u8], RoutingCondition>,
     do_parse!(
-        entries: separated_nonempty_list!(newline_maybe_space, read_map_entry) >>
-        ( entries.into_iter().collect() )
+        tag_s!("cond") >>
+        space1 >>
+        kind: take_till!(is_space) >>
+        space0 >>
+        d: switch!(value!(kind),
+            b"domain" => map!(read_mapping, |m| RoutingCondition::Domain(m)) |
+            b"ip" => map!(read_mapping, |m| RoutingCondition::IpAddr(m)) |
+            b"protocol" => map!(read_mapping, |m| RoutingCondition::Protocol(m))
+          ) >>
+        ( (d) )
     )
 );
 
-named!(get_domain<&[u8], BTreeMap<String, RoutingAction> >,
+named!(read_mapping<&[u8], BTreeMap<String, RoutingBranch> >,
     do_parse!(
-        tag_s!("cond domain") >>
-        space0 >>
         char!('{') >>
         newline_maybe_space >>
         m: dbg_dmp!(read_map) >>
@@ -43,23 +55,48 @@ named!(get_domain<&[u8], BTreeMap<String, RoutingAction> >,
     )
 );
 
-named!(read_map_entry<&[u8], (String, RoutingAction)>,
+named!(read_map<&[u8], BTreeMap<String, RoutingBranch> >,
     do_parse!(
-        keyword: map_res!(delimited!(char!('"'), take_until!("\""), char!('"')),
+        entries: separated_nonempty_list!(newline_maybe_space, read_map_entry) >>
+        ( entries.into_iter().collect() )
+    )
+);
+
+/// doesn't consume spaces before or after it
+named!(read_map_entry<&[u8], (String, RoutingBranch)>,
+    do_parse!(
+        keyword: map_res!(
+                     alt!( delimited!(char!('"'), take_until!("\""), char!('"')) |
+                           take_till!(is_space)
+                         ),
                 str::from_utf8
                  ) >>
 space0 >>
 tag!("=>") >>
 space0 >>
+        value: read_branch >>
+        ( (keyword.to_string(), value) )
+    )
+);
+
+named!(read_branch<&[u8], RoutingBranch>,
+    do_parse!(
+        value: map!(read_decision, |deci| RoutingBranch::Final(deci)) >>
+        ( value )
+    )
+);
+
+/// leaf node of the decision tree
+named!(read_decision<&[u8], RoutingDecision>,
+    do_parse!(
         value: alt!(
-            map!(tag!("direct"), |_| RoutingAction::Direct) |
-            map!(tag!("reset"), |_| RoutingAction::Reset) |
+            map!(tag!("do direct"), |_| RoutingDecision::direct()) |
+            map!(tag!("do reset"), |_| RoutingDecision {route: RoutingAction::Reset, additional: vec![]}) |
             map!(map_res!(delimited!(char!('"'), take_until!("\""), char!('"')),
                           str::from_utf8),
-                 RoutingAction::named)
+                 |s| RoutingDecision {route: RoutingAction::named(s), additional: vec![]})
         ) >>
-        space0 >>
-        ( (keyword.to_string(), value) )
+        ( value )
     )
 );
 

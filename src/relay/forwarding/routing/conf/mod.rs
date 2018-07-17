@@ -6,6 +6,7 @@ mod text;
 
 use super::super::tcp::TcpTrafficInfo;
 
+#[derive(Debug)]
 pub enum RoutingBranch {
     /// try them one by one, return the first match, if there is one
     /// otherwise there is no result
@@ -33,6 +34,7 @@ impl RoutingBranch {
     }
 }
 
+#[derive(Debug)]
 pub enum RoutingCondition {
     Domain(BTreeMap<String, RoutingBranch>),
     IpAddr(BTreeMap<String, RoutingBranch>),
