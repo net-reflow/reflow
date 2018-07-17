@@ -1,6 +1,7 @@
 //! the routing is configured using a tree-like structure
 
 use std::collections::BTreeMap;
+
 mod text;
 
 use super::super::tcp::TcpTrafficInfo;
@@ -76,6 +77,12 @@ enum RoutingAction {
     Direct,
     Reset,
     Named(String)
+}
+
+impl RoutingAction {
+    fn named(name: &str) -> RoutingAction {
+        RoutingAction::Named(name.to_string())
+    }
 }
 
 #[derive(Debug)]
