@@ -25,12 +25,8 @@ pub struct DnsUpstream {
 }
 
 impl DnsProxyConf {
-    pub fn new(conf: &path::Path) -> Result<DnsProxyConf, Error> {
-        let p = conf.join("resolve.config");
-        let f = fs::File::open(p)?;
-        let mut bufreader = io::BufReader::new(f);
-        let mut contents = String::new();
-        bufreader.read_to_string(&mut contents).unwrap();
+    pub fn new(confpath: &path::Path) -> Result<DnsProxyConf, Error> {
+        let contents = fs::read_to_string(confpath)?;
 
         #[derive(Deserialize, Debug)]
         struct ConfFileContent {

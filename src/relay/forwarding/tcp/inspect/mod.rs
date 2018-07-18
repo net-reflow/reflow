@@ -1,14 +1,12 @@
 //! read some bytes and guess the type
 
 use tokio::net::TcpStream;
-use futures::Future;
-use failure::Error;
 use bytes::BytesMut;
 
 mod codec;
 mod parse;
 pub use self::codec::RouteByHeader;
-pub use self::parse::TcpTrafficInfo;
+pub use self::parse::TcpProtocol;
 use super::super::routing::RoutingDecision;
 
 pub struct InspectedTcp {

@@ -11,6 +11,8 @@ use std::net::SocketAddr;
 
 use super::InspectedTcp;
 use relay::forwarding::tcp::inspect::parse::route;
+use std::sync::Arc;
+use relay::TcpRouter;
 
 /// Read the first bytes from the client
 /// combined with the SocketAddr already given
@@ -24,17 +26,19 @@ enum ReadGuessHeadState {
         addr: SocketAddr,
         socket: TcpStream,
         rd: BytesMut,
+        router: Arc<TcpRouter>,
     },
     Finished,
 }
 
 impl RouteByHeader {
-    pub fn new(socket: TcpStream, addr: SocketAddr) -> Self {
+    pub fn new(socket: TcpStream, addr: SocketAddr, router: Arc<TcpRouter>) -> Self {
         let buf = BytesMut::new();
         let s = ReadGuessHeadState::Reading {
             addr,
             socket: socket,
             rd: buf,
+            router,
         };
         RouteByHeader { state: s}
     }
@@ -49,7 +53,10 @@ impl Future for RouteByHeader {
             // First, read some data
             let n = {
                 let (mut socket, mut rd) = match self.state {
-                    ReadGuessHeadState::Reading {addr: ref _a, ref mut socket, ref mut rd} => (socket, rd),
+                    ReadGuessHeadState::Reading {
+                        addr: ref _a, ref mut socket, ref mut rd,
+                        router: ref _r,
+                    } => (socket, rd),
                     _ => panic!("poll after finish"),
                 };
                 rd.reserve(1024);
@@ -58,18 +65,18 @@ impl Future for RouteByHeader {
 
             let guess = {
                 match self.state {
-                    ReadGuessHeadState::Reading {addr, socket: ref _s, ref rd} => {
-                        route(&rd, addr)
+                    ReadGuessHeadState::Reading {addr, socket: ref _s, ref rd, ref router} => {
+                        route(&rd, addr, router.as_ref())
                     }
                     _ => panic!("poll after finish"),
                 }
             };
 
             if let Some(info) = guess {
-                debug!("guessed {:?}", info);
+                debug!("guessed {}", info);
                 let s = mem::replace(&mut self.state, ReadGuessHeadState::Finished);
                 let (socket, rd) = match s {
-                    ReadGuessHeadState::Reading {addr: _a, socket, rd} => (socket, rd),
+                    ReadGuessHeadState::Reading {addr: _a, socket, rd, router: _r,} => (socket, rd),
                     _ => panic!("poll after finish"),
                 };
                 let line = rd;

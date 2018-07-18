@@ -3,10 +3,22 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::{Formatter, Error};
+use std::path::Path;
+use std::fs;
+use failure::Error as FailureError;
 
 mod text;
 
-use super::super::tcp::TcpTrafficInfo;
+use self::text::get_reflow;
+use relay::forwarding::routing::TcpTrafficInfo;
+
+#[allow(dead_code)]
+pub fn load_reflow_rules(p: &Path)-> Result<RoutingBranch, FailureError> {
+    let bs = fs::read(p)?;
+    let (_, x) = get_reflow(&bs)
+        .map_err(|_| format_err!("error parsing tcp.reflow"))?;
+    Ok(x)
+}
 
 pub enum RoutingBranch {
     /// try them one by one, return the first match, if there is one
@@ -19,10 +31,10 @@ pub enum RoutingBranch {
 
 
 impl RoutingBranch {
-    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<&RoutingDecision> {
+    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
         use self::RoutingBranch::*;
         match self {
-            Final(d) => Some(d),
+            Final(d) => Some(d.clone()),
             Conditional(c) => c.decide(info),
             Sequential(s) => {
                 for r in s {
@@ -44,12 +56,11 @@ pub enum RoutingCondition {
 }
 
 impl RoutingCondition {
-    fn decide(&self, info: &TcpTrafficInfo)-> Option<&RoutingDecision> {
+    fn decide(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
         use self::RoutingCondition::*;
         match self {
             Domain(x) => {
-                let d = info.get_domain()?;
-                let d = d.as_ref();
+                let d = info.domain_region?;
                 let r = x.get(d)?;
                 r.decision(info)
             }
@@ -58,7 +69,7 @@ impl RoutingCondition {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct RoutingDecision {
     route: RoutingAction,
     additional: Vec<AdditionalAction>,
@@ -76,21 +87,14 @@ impl RoutingDecision {
 
 
 /// a chosen route
-#[derive(Debug)]
+#[derive(Clone)]
 enum RoutingAction {
     Direct,
     Reset,
     Named(String)
 }
 
-impl RoutingAction {
-    fn named(name: &str) -> RoutingAction {
-        RoutingAction::Named(name.to_string())
-    }
-}
-
-
-#[derive(Debug)]
+#[derive(Clone)]
 enum AdditionalAction {
     PrintLog,
     SaveSample,

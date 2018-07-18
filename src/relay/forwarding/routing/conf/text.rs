@@ -22,7 +22,7 @@ use super::{
     RoutingDecision
 };
 
-named!(get_reflow<&[u8], RoutingBranch>,
+named!(pub get_reflow<&[u8], RoutingBranch>,
     do_parse!(
         tag_s!("Tree-Format: reflow 0.1") >>
 
@@ -118,7 +118,7 @@ named!(read_decision<&[u8], RoutingDecision>,
                    ) |
             map!(map_res!(preceded!(pair!(tag!("use"), space1), var_name),
                           str::from_utf8),
-                 |s| RoutingAction::named(s))
+                 |s| RoutingAction::Named(s.to_string()))
         ) >>
         acts: many0!(read_additional_action) >>
         ( RoutingDecision {route, additional: acts } )

@@ -14,14 +14,16 @@ use proto::socks::Command;
 use proto::socks::Address;
 use proto::socks::SocksError;
 use proto::socks::TcpRequestHeader;
+use relay::TcpRouter;
 
-pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>)->Result<(), Error >{
+pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>)->Result<(), Error >{
     let fut =
         listen(addr)?.for_each(move|s| {
             let r1 = resolver.clone();
+            let rt1 = router.clone();
             let f =
                 s.and_then(move|(s,h)| read_address(s, h, r1.clone()))
-                .and_then(|(s,a)| handle_incoming_tcp(s, a))
+                .and_then(|(s,a)| handle_incoming_tcp(s, a, rt1))
                     .map_err(|e| error!("error handling client {}", e));
             tokio::spawn(f);
             Ok(())
