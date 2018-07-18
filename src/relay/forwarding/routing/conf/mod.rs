@@ -60,7 +60,7 @@ impl RoutingCondition {
 #[derive(Debug)]
 pub struct RoutingDecision {
     route: RoutingAction,
-    additional: Vec<AdditionalActions>,
+    additional: Vec<AdditionalAction>,
 }
 
 impl RoutingDecision {
@@ -88,7 +88,7 @@ impl RoutingAction {
 }
 
 #[derive(Debug)]
-enum AdditionalActions {
+enum AdditionalAction {
     PrintLog,
-    SaveSample { size: usize, num: usize }
+    SaveSample,
 }

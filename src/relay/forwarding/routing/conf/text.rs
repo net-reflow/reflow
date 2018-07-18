@@ -15,6 +15,7 @@ use nom::{
     space1,
 };
 use super::{
+    AdditionalAction,
     RoutingAction,
     RoutingBranch,
     RoutingCondition,
@@ -34,7 +35,7 @@ named!(read_cond<&[u8], RoutingCondition>,
     do_parse!(
         tag_s!("cond") >>
         space1 >>
-        kind: take_till!(is_space) >>
+        kind: var_name >>
         space0 >>
         d: switch!(value!(kind),
             b"domain" => map!(read_mapping, |m| RoutingCondition::Domain(m)) |
@@ -48,9 +49,10 @@ named!(read_cond<&[u8], RoutingCondition>,
 named!(read_mapping<&[u8], BTreeMap<String, RoutingBranch> >,
     do_parse!(
         char!('{') >>
-        newline_maybe_space >>
+        multispace0 >>
         m: dbg_dmp!(read_map) >>
-        //char!('}') >>
+        multispace0 >>
+        char!('}') >>
         ( m )
     )
 );
@@ -65,23 +67,22 @@ named!(read_map<&[u8], BTreeMap<String, RoutingBranch> >,
 /// doesn't consume spaces before or after it
 named!(read_map_entry<&[u8], (String, RoutingBranch)>,
     do_parse!(
-        keyword: map_res!(
-                     alt!( delimited!(char!('"'), take_until!("\""), char!('"')) |
-                           take_till!(is_space)
-                         ),
+        keyword: map_res!(var_name,
                 str::from_utf8
                  ) >>
 space0 >>
 tag!("=>") >>
 space0 >>
-        value: read_branch >>
+        value: dbg_dmp!(read_branch) >>
         ( (keyword.to_string(), value) )
     )
 );
 
 named!(read_branch<&[u8], RoutingBranch>,
     do_parse!(
-        value: map!(read_decision, |deci| RoutingBranch::Final(deci)) >>
+        value: alt!(map!(read_decision, |deci| RoutingBranch::Final(deci)) |
+                    dbg_dmp!(read_sequential)
+                   ) >>
         ( value )
     )
 );
@@ -89,14 +90,46 @@ named!(read_branch<&[u8], RoutingBranch>,
 /// leaf node of the decision tree
 named!(read_decision<&[u8], RoutingDecision>,
     do_parse!(
-        value: alt!(
-            map!(tag!("do direct"), |_| RoutingDecision::direct()) |
-            map!(tag!("do reset"), |_| RoutingDecision {route: RoutingAction::Reset, additional: vec![]}) |
-            map!(map_res!(delimited!(char!('"'), take_until!("\""), char!('"')),
+        route: alt!(
+            switch!(preceded!(pair!(tag!("do"), space1), var_name),
+                        b"direct" => value!(RoutingAction::Direct) |
+                        b"reset" => value!(RoutingAction::Reset)
+                   ) |
+            map!(map_res!(preceded!(pair!(tag!("use"), space1), var_name),
                           str::from_utf8),
-                 |s| RoutingDecision {route: RoutingAction::named(s), additional: vec![]})
+                 |s| RoutingAction::named(s))
         ) >>
-        ( value )
+        acts: many0!(read_additional_action) >>
+        ( RoutingDecision {route, additional: acts } )
+    )
+);
+
+named!(read_additional_action<&[u8], AdditionalAction>,
+    do_parse!(
+        space0 >>
+        tag!("+") >>
+        space0 >>
+        act: alt!(map!(tag!("print_log"), |_| AdditionalAction::PrintLog) |
+                  map!(tag!("save_sample"), |_| AdditionalAction::SaveSample)
+             ) >>
+        ( act )
+    )
+);
+
+named!(read_sequential<&[u8], RoutingBranch>,
+    do_parse!(
+        tag!("any") >>
+        space0 >>
+        tag!("[") >>
+        multispace0 >>
+        items:   separated_nonempty_list!(newline_maybe_space,
+                      alt!(map!(read_decision, |deci| RoutingBranch::Final(deci)) |
+                           map!(read_cond, |c| RoutingBranch::Conditional(c))
+                          )
+                 ) >>
+        multispace0 >>
+        tag!("]") >>
+        ( RoutingBranch::Sequential(items) )
     )
 );
 
@@ -109,6 +142,14 @@ named!(newline_maybe_space<&[u8], ()>,
         ( () )
     )
 );
+
+named!(var_name<&[u8], &[u8]>,
+    take_while!( is_alphanumunder )
+);
+
+fn is_alphanumunder(c: u8)-> bool {
+    c.is_ascii_alphanumeric() || c == b'_'
+}
 
 #[cfg(test)]
 mod tests{
