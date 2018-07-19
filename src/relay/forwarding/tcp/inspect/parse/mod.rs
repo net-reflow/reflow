@@ -1,52 +1,54 @@
 use bytes::BytesMut;
+use bytes::Bytes;
 use httparse;
 use std::net::SocketAddr;
 
 mod tls;
 
-use self::tls::TlsWithSni;
+use self::tls::{TlsWithSni, parse_tls_sni};
 use std::borrow::{Cow};
 use super::super::super::routing::RoutingDecision;
 use relay::TcpRouter;
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub enum TcpProtocol<'a> {
-    PlainHttp(HttpInfo<'a>),
+pub enum TcpProtocol {
+    PlainHttp(HttpInfo),
     SSH,
-    Tls(TlsWithSni<'a>),
+    Tls(TlsWithSni),
     Unidentified,
 }
 
-impl<'a> TcpProtocol<'a> {
+impl TcpProtocol {
     /// for matching keys in a dictionary
-    pub fn variant_name(&self)-> &'static str {
+    pub fn name(&self) -> &[u8] {
         use self::TcpProtocol::*;
         match &self {
-            PlainHttp(_) => "http",
-            SSH => "ssh",
-            Tls(_) => "tls",
-            Unidentified => "unidentified",
+            PlainHttp(_) => b"http",
+            SSH => b"ssh",
+            Tls(_) => b"tls",
+            Unidentified => b"unidentified",
         }
     }
 }
 
 #[derive(Debug)]
-pub struct HttpInfo<'a> {
-    host: Cow<'a, str>,
-    user_agent: Option<Cow<'a, str>>,
+pub struct HttpInfo {
+    host: Bytes,
+    user_agent: Option<Bytes>,
 }
 
-impl<'a> HttpInfo<'a> {
-    pub fn new(h: &'a[u8], ua: Option<&'a[u8]>)-> HttpInfo<'a> {
+impl HttpInfo {
+    pub fn new(h: &[u8], ua: Option<&[u8]>)-> HttpInfo {
+
         HttpInfo {
-            host: String::from_utf8_lossy(h),
-            user_agent: ua.map(|b| String::from_utf8_lossy(b)),
+            host: BytesMut::from( h).freeze(),
+            user_agent: ua.map(|b| BytesMut::from(b).freeze()),
         }
     }
 }
 
-pub fn route(bytes: &BytesMut, addr: SocketAddr, router: &TcpRouter)-> Option<RoutingDecision> {
+pub fn route(bytes: &BytesMut, addr: SocketAddr, router: &TcpRouter)-> Option<Arc<RoutingDecision>> {
     let proto = guess_bytes(bytes, addr);
     let r = router.route(addr, proto);
     r
@@ -55,9 +57,10 @@ pub fn route(bytes: &BytesMut, addr: SocketAddr, router: &TcpRouter)-> Option<Ro
 fn guess_bytes(bytes: &BytesMut, addr: SocketAddr) ->TcpProtocol {
     debug!("bytes {:?}", bytes);
     if let Some(h) = guess_http(bytes) { return TcpProtocol::PlainHttp(h) }
-    if bytes.starts_with(b"SSH-2.0") && bytes.ends_with(b"\r\n") {
+    if bytes.starts_with(b"SSH-2.0") {
         return TcpProtocol::SSH;
     }
+    if let Some(x) = parse_tls_sni(bytes.as_ref()) { return TcpProtocol::Tls(x) }
     return TcpProtocol::Unidentified;
 }
 

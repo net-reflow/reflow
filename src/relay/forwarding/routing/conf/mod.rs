@@ -6,11 +6,13 @@ use std::fmt::{Formatter, Error};
 use std::path::Path;
 use std::fs;
 use failure::Error as FailureError;
+use bytes::Bytes;
 
 mod text;
 
 use self::text::get_reflow;
 use relay::forwarding::routing::TcpTrafficInfo;
+use std::sync::Arc;
 
 #[allow(dead_code)]
 pub fn load_reflow_rules(p: &Path)-> Result<RoutingBranch, FailureError> {
@@ -26,12 +28,12 @@ pub enum RoutingBranch {
     Sequential(Vec<RoutingBranch>),
     Conditional(RoutingCondition),
     /// a match is found
-    Final(RoutingDecision)
+    Final(Arc<RoutingDecision>)
 }
 
 
 impl RoutingBranch {
-    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
+    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<Arc<RoutingDecision>> {
         use self::RoutingBranch::*;
         match self {
             Final(d) => Some(d.clone()),
@@ -46,30 +48,34 @@ impl RoutingBranch {
             }
         }
     }
+
+    fn new_final(x: RoutingDecision)-> RoutingBranch {
+        RoutingBranch::Final(Arc::new(x))
+    }
 }
 
 pub enum RoutingCondition {
-    Domain(BTreeMap<String, RoutingBranch>),
-    IpAddr(BTreeMap<String, RoutingBranch>),
+    Domain(BTreeMap<Bytes, RoutingBranch>),
+    IpAddr(BTreeMap<Bytes, RoutingBranch>),
     Port(u16, Box<RoutingBranch>),
-    Protocol(BTreeMap<String, RoutingBranch>),
+    Protocol(BTreeMap<Bytes, RoutingBranch>),
 }
 
 impl RoutingCondition {
-    fn decide(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
+    fn decide(&self, info: &TcpTrafficInfo)-> Option<Arc<RoutingDecision>> {
         use self::RoutingCondition::*;
         match self {
             Domain(x) => {
-                let d = info.domain_region?;
-                let r = x.get(d)?;
+                let r = x.get(info.domain_region()?)?;
                 r.decision(info)
             }
-            _ => unimplemented!()
+            IpAddr(x) => x.get(info.ip_region()?)?.decision(info),
+            Port(x, y) => if info.addr.port() != *x { None } else { y.decision(info) },
+            Protocol(x) => x.get(info.protocol.name())?.decision(info),
         }
     }
 }
 
-#[derive(Clone)]
 pub struct RoutingDecision {
     route: RoutingAction,
     additional: Vec<AdditionalAction>,
@@ -87,14 +93,12 @@ impl RoutingDecision {
 
 
 /// a chosen route
-#[derive(Clone)]
 enum RoutingAction {
     Direct,
     Reset,
-    Named(String)
+    Named(Bytes)
 }
 
-#[derive(Clone)]
 enum AdditionalAction {
     PrintLog,
     SaveSample,
@@ -147,7 +151,7 @@ impl fmt::Display for RoutingAction {
         match self {
             Direct => write!(f, "do direct"),
             Reset  => write!(f, "do reset"),
-            Named(s) => write!(f, "use {}", s),
+            Named(s) => write!(f, "use {:?}", s),
         }
     }
 }
@@ -162,11 +166,11 @@ impl fmt::Display for AdditionalAction {
     }
 }
 
-fn print_mapping(map: &BTreeMap<String, RoutingBranch>, f: &mut Formatter)
+fn print_mapping(map: &BTreeMap<Bytes, RoutingBranch>, f: &mut Formatter)
                  -> Result<(), Error> {
     write!(f, "{{\n")?;
     for (k,v) in map.iter() {
-        write!(f, "{} => {}\n", k, v)?;
+        write!(f, "{:?} => {}\n", k, v)?;
     }
     write!(f, "}}")?;
     Ok(())

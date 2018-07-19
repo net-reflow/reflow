@@ -1,6 +1,6 @@
 //! parse the configuration file
+use bytes::Bytes;
 use std::str;
-use std::string::ToString;
 use std::collections::BTreeMap;
 use nom::{
     alpha,
@@ -28,7 +28,7 @@ named!(pub get_reflow<&[u8], RoutingBranch>,
 
         v: many1!(
             preceded!(newline_maybe_space,
-                alt!(map!(read_decision, |deci| RoutingBranch::Final(deci)) |
+                alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
                            map!(read_cond, |c| RoutingBranch::Conditional(c))))) >>
         ( RoutingBranch::Sequential(v) )
     )
@@ -50,7 +50,7 @@ named!(read_cond<&[u8], RoutingCondition>,
     )
 );
 
-named!(read_mapping<&[u8], BTreeMap<String, RoutingBranch> >,
+named!(read_mapping<&[u8], BTreeMap<Bytes, RoutingBranch> >,
     do_parse!(
         char!('{') >>
         multispace0 >>
@@ -80,7 +80,7 @@ named!(read_u16<&[u8], u16>,
              str::FromStr::from_str)
 );
 
-named!(read_map<&[u8], BTreeMap<String, RoutingBranch> >,
+named!(read_map<&[u8], BTreeMap<Bytes, RoutingBranch> >,
     do_parse!(
         entries: separated_nonempty_list!(newline_maybe_space, read_map_entry) >>
         ( entries.into_iter().collect() )
@@ -88,21 +88,19 @@ named!(read_map<&[u8], BTreeMap<String, RoutingBranch> >,
 );
 
 /// doesn't consume spaces before or after it
-named!(read_map_entry<&[u8], (String, RoutingBranch)>,
+named!(read_map_entry<&[u8], (Bytes, RoutingBranch)>,
     do_parse!(
-        keyword: map_res!(var_name,
-                str::from_utf8
-                 ) >>
+        keyword: map!(var_name, |bs: &[u8]| bs.into()) >>
 space0 >>
 tag!("=>") >>
 space0 >>
         value: read_branch >>
-        ( (keyword.to_string(), value) )
+        ( (keyword, value) )
     )
 );
 
 named!(read_branch<&[u8], RoutingBranch>,
-    alt!(map!(read_decision, |deci| RoutingBranch::Final(deci)) |
+    alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
          preceded!(tuple!(tag!("any"), space0), delimited!(tag!("["), read_sequential, tag!("]"))) |
          map!(read_cond, |c| RoutingBranch::Conditional(c))
         )
@@ -116,9 +114,9 @@ named!(read_decision<&[u8], RoutingDecision>,
                         b"direct" => value!(RoutingAction::Direct) |
                         b"reset" => value!(RoutingAction::Reset)
                    ) |
-            map!(map_res!(preceded!(pair!(tag!("use"), space1), var_name),
-                          str::from_utf8),
-                 |s| RoutingAction::Named(s.to_string()))
+            map!(map!(preceded!(pair!(tag!("use"), space1), var_name),
+                      |bs: &[u8]| bs.into()),
+                 |s| RoutingAction::Named(s))
         ) >>
         acts: many0!(read_additional_action) >>
         ( RoutingDecision {route, additional: acts } )
@@ -141,7 +139,7 @@ named!(read_sequential<&[u8], RoutingBranch>,
     do_parse!(
         multispace0 >>
         items:   separated_nonempty_list!(newline_maybe_space,
-                      alt!(map!(read_decision, |deci| RoutingBranch::Final(deci)) |
+                      alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
                            map!(read_cond, |c| RoutingBranch::Conditional(c))
                           )
                  ) >>

@@ -3,17 +3,24 @@ use nom::{be_u8,be_u16, be_u24, be_u32, ErrorKind};
 use std::fmt;
 mod sni;
 
+use bytes::Bytes;
 use self::sni::{parse_tls_extension, TlsExtension};
 use std::borrow::Cow;
 
 /// Tls connection that can be recognized to some extent
 #[derive(Debug)]
-pub struct TlsWithSni<'a> {
+pub struct TlsWithSni {
     /// only possibly useful fields are included here
     pub version: TlsVersion,
-    pub sni: Cow<'a, str>,
+    pub sni: Bytes,
 }
 
+pub fn parse_tls_sni(bs: &[u8])-> Option<TlsWithSni> {
+    let x = parse_tls_plaintext(bs).ok().map(|y| y.1)?;
+    let v = x.version;
+    let n = x.get_sni()?;
+    Some(TlsWithSni { version: v, sni: n })
+}
 /// Content type, as defined in IANA TLS ContentType registry
 const TLS_RECORD_TYPE_HANDSHAKE: u8 = 0x16;
 
@@ -111,13 +118,13 @@ impl<'a> TlsClientHello<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn get_sni(&self)-> Option<Cow<str>> {
-        for e in &self.ext {
+    pub fn get_sni(self)-> Option<Bytes> {
+        for e in self.ext {
             match e {
                 TlsExtension::SNI(names) => {
                     for (nt, nb) in names {
-                        if *nt == 0 {
-                            return Some(String::from_utf8_lossy(nb));
+                        if nt == 0 {
+                            return Some(nb);
                         }
                     }
                 }
@@ -262,7 +269,7 @@ mod tests {
             session_id: None,
             ciphers: ciphers,
             comp: &[0],
-            ext: vec![ TlsExtension::SNI(vec![(0, "localhost".as_bytes())]),
+            ext: vec![ TlsExtension::SNI(vec![(0, "localhost".into())]),
                        TlsExtension::Unknown(11, &[3, 0, 1, 2]),
                        TlsExtension::Unknown(10, &[0x2e, 0x79, 0x60, 0x6c, 0x1e, 0x66, 0xe7, 0x96, 0x7a, 0xa9,
             0x8c, 0xdf, 0x5f, 0xd8, 0x75, 0x91, 0x66, 0x6a, 0xcb, 0x73,
