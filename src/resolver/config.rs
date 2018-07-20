@@ -6,13 +6,14 @@ use std::path;
 use std::collections::BTreeMap;
 
 use failure::Error;
+use bytes::Bytes;
 
 use toml;
 
 #[derive(Debug)]
 pub struct DnsProxyConf {
     pub listen: SocketAddr,
-    pub resolv: BTreeMap<String, DnsUpstream>,
+    pub resolv: BTreeMap<Bytes, DnsUpstream>,
     pub default: DnsUpstream,
 }
 
@@ -46,7 +47,8 @@ impl DnsProxyConf {
             let server_addr = servers.get(&server).ok_or(
              io::Error::new(io::ErrorKind::NotFound, format!("dns server {} not defined", server)))?;
             let up: DnsUpstream = server_addr.clone();
-            resolv.insert(region, up);
+            let k = region.as_bytes().into();
+            resolv.insert(k, up);
         }
         Ok(DnsProxyConf {
             listen: conf.listen,

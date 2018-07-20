@@ -5,7 +5,7 @@ use bytes::BytesMut;
 
 mod codec;
 mod parse;
-pub use self::codec::RouteByHeader;
+pub use self::codec::ParseFirstPacket;
 pub use self::parse::TcpProtocol;
 use super::super::routing::RoutingDecision;
 use std::sync::Arc;
@@ -16,5 +16,5 @@ pub struct InspectedTcp {
     /// bytes read
     pub bytes: BytesMut,
     #[allow(dead_code)]
-    route: Arc<RoutingDecision>,
+    pub protocol: TcpProtocol,
 }

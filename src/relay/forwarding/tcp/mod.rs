@@ -9,13 +9,13 @@ use failure::Error;
 use std::net::SocketAddr;
 
 mod inspect;
-use self::inspect::RouteByHeader;
+use self::inspect::ParseFirstPacket;
 pub use self::inspect::TcpProtocol;
 use std::sync::Arc;
 use relay::TcpRouter;
 
 pub fn handle_incoming_tcp(client_stream: TcpStream, a: SocketAddr, router: Arc<TcpRouter>)-> impl Future<Item=(), Error=Error> {
-    RouteByHeader::new(client_stream, a, router).and_then(move|tcp| {
+    ParseFirstPacket::new(client_stream, a, router).and_then(move|tcp| {
         let client_stream = tcp.stream;
         let data = tcp.bytes;
         let s = tokio::net::TcpStream::connect(&a).map_err(|e| e.into());

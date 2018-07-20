@@ -3,23 +3,31 @@ use std::fs::{self, DirEntry};
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::path;
+use bytes::Bytes;
 
-pub fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Arc<String>, Vec<DirEntry>>>{
+pub fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>{
     let mut region_map = HashMap::new();
-    let kindprefix = format!("{}.", kind);
     for entry in fs::read_dir(path)? {
         let file = entry?;
         let ftype = file.file_type()?;
 
-        let name = file.file_name();
-        let name= name.to_string_lossy();
-        if ftype.is_dir() && name.starts_with(&kindprefix) {
-            let region_name = name.trim_left_matches(&kindprefix).to_owned();
+        let f = file.file_name();
+        let n = f.to_str().and_then(|x| extract_name(x, kind));
+        if ftype.is_dir() && n.is_some() {
             let conf = find_dir_entris(file)?;
-            region_map.insert(Arc::new(region_name), conf);
+            region_map.insert(n.unwrap(), conf);
         }
     }
     Ok(region_map)
+}
+
+fn extract_name(filename: &str, prefix: &str)-> Option<Bytes> {
+    if !filename.starts_with(prefix) { return None; }
+    let rest = filename.trim_left_matches(prefix);
+    if !rest.starts_with(".") { return None; }
+    let rest = rest.trim_left_matches(".");
+    if rest.len() < 1 { return  None; }
+    Some(rest.into())
 }
 
 fn find_dir_entris(dir: DirEntry)-> io::Result<Vec<DirEntry>> {

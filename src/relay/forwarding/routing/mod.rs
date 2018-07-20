@@ -42,6 +42,8 @@ impl TcpRouter {
     }
 
     pub fn route(&self, addr: SocketAddr, protocol: TcpProtocol)-> Option<Arc<RoutingDecision>> {
+        let domain = protocol.get_domain()
+            .and_then(|x| self.domain_match.rule_domain(x));
         let i = TcpTrafficInfo { addr, protocol, domain_region: None, ip_region: None };
         let d = self.rules.decision(&i);
         // let d = d.map(|x| x.clone());

@@ -30,6 +30,15 @@ impl TcpProtocol {
             Unidentified => b"unidentified",
         }
     }
+
+    pub fn get_domain(&self)-> Option<&[u8]> {
+        use self::TcpProtocol::*;
+        match &self {
+            PlainHttp(x) => Some(&x.host),
+            Tls(x) => Some(&x.sni),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -48,13 +57,7 @@ impl HttpInfo {
     }
 }
 
-pub fn route(bytes: &BytesMut, addr: SocketAddr, router: &TcpRouter)-> Option<Arc<RoutingDecision>> {
-    let proto = guess_bytes(bytes, addr);
-    let r = router.route(addr, proto);
-    r
-}
-
-fn guess_bytes(bytes: &BytesMut, addr: SocketAddr) ->TcpProtocol {
+pub fn guess_bytes(bytes: &BytesMut) ->TcpProtocol {
     debug!("bytes {:?}", bytes);
     if let Some(h) = guess_http(bytes) { return TcpProtocol::PlainHttp(h) }
     if bytes.starts_with(b"SSH-2.0") {

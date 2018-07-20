@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
 use failure::Error;
 use futures::Future;
 use futures::future;
@@ -17,7 +18,7 @@ use futures_cpupool::CpuPool;
 type SF<V, E> = Future<Item=V, Error=E> + Send;
 
 pub struct SmartResolver {
-    region_resolver: Vec<(String, DnsClient)>,
+    region_resolver: Vec<(Bytes, DnsClient)>,
     default_resolver: DnsClient,
     router: Arc<DomainMatcher>,
 }
@@ -25,7 +26,7 @@ pub struct SmartResolver {
 impl SmartResolver {
     pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxyConf, pool: CpuPool)
         -> Result<SmartResolver, Error> {
-        let rresolvers: Vec<(String, DnsClient)> = regionconf.resolv
+        let rresolvers: Vec<(Bytes, DnsClient)> = regionconf.resolv
             .iter().map(|(r, s)| {
             let dc = DnsClient::new(s, &pool);
             (r.clone(), dc)
@@ -60,7 +61,7 @@ impl SmartResolver {
         let n = name.to_string();
         let n: Vec<&str> = n.trim_right_matches('.').split('.').rev().collect();
         let d = n.join(".");
-        let r = self.router.rule_domain(&d);
+        let r = self.router.rule_domain(d.as_bytes());
         if let Some(region) = r {
             for &(ref reg, ref res) in &self.region_resolver {
                 if  region.as_ref() == reg {

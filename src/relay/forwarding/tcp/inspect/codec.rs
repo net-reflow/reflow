@@ -10,14 +10,15 @@ use failure::Error;
 use std::net::SocketAddr;
 
 use super::InspectedTcp;
-use relay::forwarding::tcp::inspect::parse::route;
+use relay::forwarding::tcp::inspect::parse::guess_bytes;
 use std::sync::Arc;
 use relay::TcpRouter;
+use relay::forwarding::tcp::TcpProtocol;
 
 /// Read the first bytes from the client
 /// combined with the SocketAddr already given
 /// choose a route according to rules configured
-pub struct RouteByHeader {
+pub struct ParseFirstPacket {
     state: ReadGuessHeadState
 }
 
@@ -31,7 +32,7 @@ enum ReadGuessHeadState {
     Finished,
 }
 
-impl RouteByHeader {
+impl ParseFirstPacket {
     pub fn new(socket: TcpStream, addr: SocketAddr, router: Arc<TcpRouter>) -> Self {
         let buf = BytesMut::new();
         let s = ReadGuessHeadState::Reading {
@@ -40,11 +41,11 @@ impl RouteByHeader {
             rd: buf,
             router,
         };
-        RouteByHeader { state: s}
+        ParseFirstPacket { state: s}
     }
 }
 
-impl Future for RouteByHeader {
+impl Future for ParseFirstPacket {
     type Item = InspectedTcp;
     type Error = Error;
 
@@ -66,14 +67,14 @@ impl Future for RouteByHeader {
             let guess = {
                 match self.state {
                     ReadGuessHeadState::Reading {addr, socket: ref _s, ref rd, ref router} => {
-                        route(&rd, addr, router.as_ref())
+                        guess_bytes(&rd)
                     }
                     _ => panic!("poll after finish"),
                 }
             };
 
-            if let Some(info) = guess {
-                debug!("guessed {}", info);
+            {
+                debug!("detected protocol {:?}", guess);
                 let s = mem::replace(&mut self.state, ReadGuessHeadState::Finished);
                 let (socket, rd) = match s {
                     ReadGuessHeadState::Reading {addr: _a, socket, rd, router: _r,} => (socket, rd),
@@ -84,7 +85,7 @@ impl Future for RouteByHeader {
                 let tcp = InspectedTcp {
                     stream: socket,
                     bytes: line,
-                    route: info,
+                    protocol: guess,
                 };
                 // Return the line
                 return Ok(Async::Ready(tcp));
