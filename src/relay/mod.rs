@@ -18,7 +18,7 @@ pub fn run_with_conf(path: &Path, d: Arc<DomainMatcher>, i: Arc<IpMatcher>)-> Re
     let conf = RelayConf::new(path)?;
     let resolver = Arc::new(create_resolver(conf.resolver));
     let tcp_rules = load_reflow_rules(&path.join("tcp.reflow"))?;
-    let router = TcpRouter::new(d, i, tcp_rules);
+    let router = TcpRouter::new(d, i, tcp_rules, conf.get_gateways());
     listen_socks(&conf.listen_socks, resolver, Arc::new(router))?;
     Ok(())
 }

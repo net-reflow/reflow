@@ -16,6 +16,7 @@ use failure::Error;
 use treebitmap::IpLookupTable;
 use super::util::find_confs;
 use std::path;
+use std::net::IpAddr;
 
 pub struct IpMatcher {
     ip4_table: IpLookupTable<Ipv4Addr, Bytes>
@@ -34,6 +35,14 @@ impl IpMatcher {
         match self.ip4_table.longest_match(ip) {
             Some((_, _, v)) => Some(v),
             None => None,
+        }
+    }
+
+    pub fn match_ip(&self, ip: IpAddr)-> Option<Bytes> {
+        match ip {
+            IpAddr::V4(i) => self.ip4_table.longest_match(i)
+                .map(|(_i, _m, v)| v.clone()),
+            IpAddr::V6(_i) => None,
         }
     }
 }

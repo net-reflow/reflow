@@ -44,7 +44,7 @@ fn read_address(stream:TcpStream, head: TcpRequestHeader, resolver: Arc<Resolver
                 .then(move |res| {
                     match res {
                         Ok(lookup) => lookup.iter().next().ok_or_else(||format_err!("No address found for domain {}", domain)),
-                        Err(e) => Err(format_err!("Error resolving {}: {:?}", domain, e)),
+                        Err(e) => Err(format_err!("Error resolving {}: {}", domain, e)),
                     }
                 })
                 .map(move |ip| {

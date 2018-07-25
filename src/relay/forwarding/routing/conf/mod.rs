@@ -77,7 +77,7 @@ impl RoutingCondition {
 }
 
 pub struct RoutingDecision {
-    route: RoutingAction,
+    pub route: RoutingAction,
     additional: Vec<AdditionalAction>,
 }
 
@@ -93,7 +93,7 @@ impl RoutingDecision {
 
 
 /// a chosen route
-enum RoutingAction {
+pub enum RoutingAction {
     Direct,
     Reset,
     Named(Bytes)

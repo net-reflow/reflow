@@ -9,6 +9,10 @@ use std::net::SocketAddr;
 use ruling::{DomainMatcher, IpMatcher};
 use relay::forwarding::routing::conf::RoutingBranch;
 use relay::forwarding::tcp::TcpProtocol;
+use std::collections::BTreeMap;
+use relay::conf::SocksConf;
+use std::net::IpAddr;
+use relay::forwarding::routing::conf::RoutingAction;
 
 struct TcpTrafficInfo {
     addr: SocketAddr,
@@ -31,22 +35,35 @@ pub struct TcpRouter {
     domain_match: Arc<DomainMatcher>,
     ip_match: Arc<IpMatcher>,
     rules: RoutingBranch,
+    gateways: BTreeMap<Bytes, SocksConf>,
 }
 
 impl TcpRouter {
     pub fn new(domain_match: Arc<DomainMatcher>,
                ip_match: Arc<IpMatcher>,
                rules: RoutingBranch,
+               gateways: BTreeMap<Bytes, SocksConf>,
     ) -> TcpRouter {
-        TcpRouter { domain_match, ip_match, rules }
+        TcpRouter { domain_match, ip_match, rules, gateways }
     }
 
-    pub fn route(&self, addr: SocketAddr, protocol: TcpProtocol)-> Option<Arc<RoutingDecision>> {
+    pub fn route(&self, addr: SocketAddr, protocol: TcpProtocol)-> Option<Route> {
         let domain = protocol.get_domain()
             .and_then(|x| self.domain_match.rule_domain(x));
-        let i = TcpTrafficInfo { addr, protocol, domain_region: None, ip_region: None };
+        let ip = self.ip_match.match_ip(addr.ip());
+        let i = TcpTrafficInfo { addr, protocol, domain_region: None, ip_region: ip };
         let d = self.rules.decision(&i);
-        // let d = d.map(|x| x.clone());
-        d
+        d.and_then(|x| match x.route {
+            RoutingAction::Direct => Some(Route::Direct),
+            RoutingAction::Reset => Some(Route::Reset),
+            RoutingAction::Named(ref x) => self.gateways.get(x)
+                .map(|x| Route::Socks(x.clone())),
+        })
     }
+}
+
+pub enum Route {
+    Direct,
+    Reset,
+    Socks(SocksConf),
 }
