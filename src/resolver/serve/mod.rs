@@ -25,7 +25,7 @@ pub fn serve(router: Arc<DomainMatcher>, conf: DnsProxyConf, pool: CpuPool) -> R
                         u.sock.poll_send_to(&x, &u.peer).map_err(|e| e.into())
                     })
                     .map(|_s| ())
-                    .map_err(|e| warn!("erro: {:?}", e))
+                    .map_err(|e| warn!("erro: {}", e))
             );
             Ok(())
         })

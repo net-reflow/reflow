@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 use std::io;
-use std::io::Read;
 use std::fs;
 use std::path;
 use std::collections::BTreeMap;

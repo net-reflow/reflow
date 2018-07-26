@@ -11,11 +11,10 @@ use relay::forwarding::routing::conf::RoutingBranch;
 use relay::forwarding::tcp::TcpProtocol;
 use std::collections::BTreeMap;
 use relay::conf::SocksConf;
-use std::net::IpAddr;
 use relay::forwarding::routing::conf::RoutingAction;
 
 #[derive(Debug)]
-struct TcpTrafficInfo {
+pub struct TcpTrafficInfo {
     addr: SocketAddr,
     protocol: TcpProtocol,
     pub domain_region: Option<Bytes>,
@@ -50,11 +49,15 @@ impl TcpRouter {
 
     pub fn route(&self, addr: SocketAddr, protocol: TcpProtocol)-> Option<Route> {
         let domain = protocol.get_domain()
-            .and_then(|x| self.domain_match.rule_domain(x));
+            .and_then(|x| {
+                let x: Vec<&[u8]> = x.split(|&y | y==b'.').rev().collect();
+                let x = x.join(&b'.');
+                self.domain_match.rule_domain(&x)
+            });
         let ip = self.ip_match.match_ip(addr.ip());
         let i = TcpTrafficInfo { addr, protocol, domain_region: domain, ip_region: ip };
         let d = self.rules.decision(&i);
-        trace!("route {:?}, tcp traffic {:?}", d, i);
+        info!("route {:?}, tcp traffic {:?}", d, i);
         d.and_then(|x| match x.route {
             RoutingAction::Direct => Some(Route::Direct),
             RoutingAction::Reset => Some(Route::Reset),

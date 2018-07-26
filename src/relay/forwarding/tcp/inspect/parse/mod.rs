@@ -1,15 +1,10 @@
 use bytes::BytesMut;
 use bytes::Bytes;
 use httparse;
-use std::net::SocketAddr;
 
 mod tls;
 
 use self::tls::{TlsWithSni, parse_tls_sni};
-use std::borrow::{Cow};
-use super::super::super::routing::RoutingDecision;
-use relay::TcpRouter;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum TcpProtocol {
@@ -58,7 +53,7 @@ impl HttpInfo {
 }
 
 pub fn guess_bytes(bytes: &BytesMut) ->TcpProtocol {
-    debug!("bytes {:?}", bytes);
+    trace!("bytes {:?}", bytes);
     if let Some(h) = guess_http(bytes) { return TcpProtocol::PlainHttp(h) }
     if bytes.starts_with(b"SSH-2.0") {
         return TcpProtocol::SSH;

@@ -81,17 +81,6 @@ pub struct RoutingDecision {
     additional: Vec<AdditionalAction>,
 }
 
-impl RoutingDecision {
-    /// simplest
-    pub fn direct()-> RoutingDecision {
-        RoutingDecision {
-            route: RoutingAction::Direct,
-            additional: vec![],
-        }
-    }
-}
-
-
 /// a chosen route
 pub enum RoutingAction {
     Direct,

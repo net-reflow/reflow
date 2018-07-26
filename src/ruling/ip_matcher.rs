@@ -1,13 +1,10 @@
 extern crate treebitmap;
 
 use std::net::Ipv4Addr;
-use std::sync::Arc;
 use std::collections::HashMap;
 
 use std::fs;
 use std::fs::DirEntry;
-use std::io;
-use std::io::Read;
 use std::str::FromStr;
 use std::str::from_utf8;
 

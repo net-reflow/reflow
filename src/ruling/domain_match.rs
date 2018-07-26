@@ -1,12 +1,10 @@
 extern crate radix_trie;
 
-use std::sync::Arc;
 use std::collections::HashMap;
 
 use std::fs;
 use std::fs::DirEntry;
 use std::io;
-use std::io::Read;
 use bytes::Bytes;
 
 use super::util::find_confs;
@@ -27,6 +25,7 @@ impl <'a> DomainMatcher {
         Ok(ruler)
     }
 
+    /// argument starts with the root, such as com.google.www
     pub fn rule_domain(&self, d: &[u8]) -> Option<Bytes> {
         if let Some(x) = self.domain_trie.get(d) {
             return Some(x.clone());
@@ -73,7 +72,7 @@ fn build_domain_trie(regions: &HashMap<Bytes, Vec<DirEntry>>)
 /// remove the last part of a domain
 fn split_off_last(d: &[u8]) -> Option<&[u8]> {
     let l = d.len();
-    for i in (0..l) {
+    for i in 0..l {
         let j = l -1- i;
         if d[j] == b'.' {
             return Some(&d[0..j]);

@@ -17,7 +17,6 @@ pub use self::inspect::TcpProtocol;
 use std::sync::Arc;
 use relay::TcpRouter;
 use bytes::Bytes;
-use relay::forwarding::routing::RoutingDecision;
 use relay::forwarding::routing::Route;
 use tokio::io;
 use socks::Socks5Stream;
@@ -32,12 +31,11 @@ pub fn handle_incoming_tcp(
     router: Arc<TcpRouter>,
     pool: CpuPool,
 )-> impl Future<Item=(), Error=Error> {
-    let rt = router.clone();
-    ParseFirstPacket::new(client_stream, a, rt)
+    ParseFirstPacket::new(client_stream)
         .and_then(move|tcp| {
             let r = router.route(a, tcp.protocol);
             let client_stream = tcp.stream;
-            let p = client_stream.peer_addr().unwrap();
+            let p = client_stream.peer_addr();
             if let Some(r) = r {
                 Either::A(carry_out(tcp.bytes.freeze(), a, r, client_stream, pool))
             } else {

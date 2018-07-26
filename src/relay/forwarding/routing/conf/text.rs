@@ -3,14 +3,9 @@ use bytes::Bytes;
 use std::str;
 use std::collections::BTreeMap;
 use nom::{
-    alpha,
     digit1,
-    Err,
-    is_space,
     line_ending,
     multispace0,
-    not_line_ending,
-    newline,
     space0,
     space1,
 };

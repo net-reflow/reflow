@@ -5,7 +5,6 @@ mod sni;
 
 use bytes::Bytes;
 use self::sni::{parse_tls_extension, TlsExtension};
-use std::borrow::Cow;
 
 /// Tls connection that can be recognized to some extent
 #[derive(Debug)]

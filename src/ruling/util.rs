@@ -1,6 +1,5 @@
 use std::io::{self};
 use std::fs::{self, DirEntry};
-use std::sync::Arc;
 use std::collections::HashMap;
 use std::path;
 use bytes::Bytes;

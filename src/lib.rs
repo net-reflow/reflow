@@ -42,7 +42,6 @@ mod cmd_options;
 
 use resolver::config::DnsProxyConf;
 use relay::run_with_conf;
-use relay::TcpRouter;
 
 pub fn run()-> Result<(), Box<Error>> {
     env_logger::Builder::from_default_env()
