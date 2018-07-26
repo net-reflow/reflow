@@ -15,15 +15,17 @@ use proto::socks::Address;
 use proto::socks::SocksError;
 use proto::socks::TcpRequestHeader;
 use relay::TcpRouter;
+use futures_cpupool::CpuPool;
 
-pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>)->Result<(), Error >{
+pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>, p: CpuPool)->Result<(), Error >{
     let fut =
         listen(addr)?.for_each(move|s| {
             let r1 = resolver.clone();
             let rt1 = router.clone();
+            let p = p.clone();
             let f =
                 s.and_then(move|(s,h)| read_address(s, h, r1.clone()))
-                .and_then(|(s,a)| handle_incoming_tcp(s, a, rt1))
+                .and_then(|(s,a)| handle_incoming_tcp(s, a, rt1, p))
                     .map_err(|e| error!("error handling client {}", e));
             tokio::spawn(f);
             Ok(())

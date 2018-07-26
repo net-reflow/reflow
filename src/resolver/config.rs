@@ -37,7 +37,7 @@ impl DnsProxyConf {
         }
 
         let mut conf: ConfFileContent = toml::from_str(&contents)?;
-        println!("cfc {:?}", conf);
+        trace!("resolver config {:?}", conf);
         let servers = conf.server;
         let default = conf.rule.remove("else").and_then(|s| {
             servers.get(&s)

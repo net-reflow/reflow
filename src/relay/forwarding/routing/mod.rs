@@ -14,6 +14,7 @@ use relay::conf::SocksConf;
 use std::net::IpAddr;
 use relay::forwarding::routing::conf::RoutingAction;
 
+#[derive(Debug)]
 struct TcpTrafficInfo {
     addr: SocketAddr,
     protocol: TcpProtocol,
@@ -51,13 +52,14 @@ impl TcpRouter {
         let domain = protocol.get_domain()
             .and_then(|x| self.domain_match.rule_domain(x));
         let ip = self.ip_match.match_ip(addr.ip());
-        let i = TcpTrafficInfo { addr, protocol, domain_region: None, ip_region: ip };
+        let i = TcpTrafficInfo { addr, protocol, domain_region: domain, ip_region: ip };
         let d = self.rules.decision(&i);
+        trace!("route {:?}, tcp traffic {:?}", d, i);
         d.and_then(|x| match x.route {
             RoutingAction::Direct => Some(Route::Direct),
             RoutingAction::Reset => Some(Route::Reset),
             RoutingAction::Named(ref x) => self.gateways.get(x)
-                .map(|x| Route::Socks(x.clone())),
+                .map(|x| Route::Socks(SocketAddr::new(x.host, x.port))),
         })
     }
 }
@@ -65,5 +67,5 @@ impl TcpRouter {
 pub enum Route {
     Direct,
     Reset,
-    Socks(SocksConf),
+    Socks(SocketAddr),
 }

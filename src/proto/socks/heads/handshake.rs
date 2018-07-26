@@ -12,7 +12,7 @@ use bytes::BytesMut;
 use proto::socks::consts;
 
 pub fn handle_socks_head(s: TcpStream, h: HandshakeRequest) -> impl Future<Item=TcpStream, Error=Error> {
-    debug!("socks req: {:?}", h);
+    trace!("socks req: {:?}", h);
     if !h.methods.contains(&(AuthMethod::NONE as u8)) {
         warn!("Currently does not support socks authentication");
         Either::A(write_socks_response(s, AuthMethod::NotAcceptable).then(|_r| {

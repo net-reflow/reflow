@@ -18,8 +18,8 @@ pub struct RelayConf {
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct SocksConf {
-    host: IpAddr,
-    port: u16,
+    pub host: IpAddr,
+    pub port: u16,
 }
 
 impl RelayConf {

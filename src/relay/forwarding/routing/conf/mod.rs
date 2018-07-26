@@ -135,6 +135,12 @@ impl fmt::Display for RoutingCondition {
     }
 }
 
+impl fmt::Debug for RoutingDecision {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "{}", self)
+    }
+}
+
 impl fmt::Display for RoutingDecision {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f, "{}", self.route)?;

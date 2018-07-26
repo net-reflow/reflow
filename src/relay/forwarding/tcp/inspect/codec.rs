@@ -74,7 +74,7 @@ impl Future for ParseFirstPacket {
             };
 
             {
-                debug!("detected protocol {:?}", guess);
+                trace!("detected protocol {:?}", guess);
                 let s = mem::replace(&mut self.state, ReadGuessHeadState::Finished);
                 let (socket, rd) = match s {
                     ReadGuessHeadState::Reading {addr: _a, socket, rd, router: _r,} => (socket, rd),

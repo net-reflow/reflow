@@ -59,7 +59,7 @@ pub fn run()-> Result<(), Box<Error>> {
     let conf = DnsProxyConf::new(&config_path.join("resolve.config"))?;
     let mut rt = Runtime::new()?;
     rt.spawn( future::lazy(move || {
-        if let Err(e) = run_with_conf(&conf1, d.clone(), ip_matcher) {
+        if let Err(e) = run_with_conf(&conf1, d.clone(), ip_matcher, pool.clone()) {
             error!("Relay error: {:?}", e);
         }
         let ds = resolver::serve(d.clone(), conf, pool);
