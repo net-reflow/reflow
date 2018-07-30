@@ -14,14 +14,14 @@ use relay::conf::SocksConf;
 use relay::forwarding::routing::conf::RoutingAction;
 
 #[derive(Debug)]
-pub struct TcpTrafficInfo {
+pub struct TcpTrafficInfo<'a> {
     addr: SocketAddr,
-    protocol: TcpProtocol,
+    protocol: &'a TcpProtocol,
     pub domain_region: Option<Bytes>,
     ip_region: Option<Bytes>,
 }
 
-impl TcpTrafficInfo {
+impl<'a> TcpTrafficInfo<'a> {
     pub fn domain_region(&self)-> Option<&[u8]> {
         if let Some(ref x) = self.domain_region { Some(x) } else { None }
     }
@@ -47,7 +47,7 @@ impl TcpRouter {
         TcpRouter { domain_match, ip_match, rules, gateways }
     }
 
-    pub fn route(&self, addr: SocketAddr, protocol: TcpProtocol)-> Option<Route> {
+    pub fn route(&self, addr: SocketAddr, protocol: &TcpProtocol)-> Option<Route> {
         let domain = protocol.get_domain()
             .and_then(|x| {
                 let x: Vec<&[u8]> = x.split(|&y | y==b'.').rev().collect();
@@ -55,7 +55,7 @@ impl TcpRouter {
                 self.domain_match.rule_domain(&x)
             });
         let ip = self.ip_match.match_ip(addr.ip());
-        let i = TcpTrafficInfo { addr, protocol, domain_region: domain, ip_region: ip };
+        let i = TcpTrafficInfo { addr, protocol: &protocol, domain_region: domain, ip_region: ip };
         let d = self.rules.decision(&i);
         info!("route {:?}, tcp traffic {:?}", d, i);
         d.and_then(|x| match x.route {
@@ -67,6 +67,7 @@ impl TcpRouter {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum Route {
     Direct,
     Reset,

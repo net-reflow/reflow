@@ -7,7 +7,7 @@ use bytes::Bytes;
 use self::sni::{parse_tls_extension, TlsExtension};
 
 /// Tls connection that can be recognized to some extent
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TlsWithSni {
     /// only possibly useful fields are included here
     pub version: TlsVersion,

@@ -6,7 +6,7 @@ mod tls;
 
 use self::tls::{TlsWithSni, parse_tls_sni};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TcpProtocol {
     PlainHttp(HttpInfo),
     SSH,
@@ -36,7 +36,7 @@ impl TcpProtocol {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct HttpInfo {
     host: Bytes,
     user_agent: Option<Bytes>,
