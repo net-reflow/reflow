@@ -13,6 +13,7 @@ mod text;
 use self::text::get_reflow;
 use relay::forwarding::routing::TcpTrafficInfo;
 use std::sync::Arc;
+use std::net::IpAddr;
 
 #[allow(dead_code)]
 pub fn load_reflow_rules(p: &Path)-> Result<RoutingBranch, FailureError> {
@@ -84,6 +85,8 @@ pub struct RoutingDecision {
 /// a chosen route
 pub enum RoutingAction {
     Direct,
+    /// Bind to an address before connecting
+    From(IpAddr),
     Reset,
     Named(Bytes)
 }
@@ -145,6 +148,7 @@ impl fmt::Display for RoutingAction {
         use self::RoutingAction::*;
         match self {
             Direct => write!(f, "do direct"),
+            From(i) => write!(f, "from {:?}", i),
             Reset  => write!(f, "do reset"),
             Named(s) => write!(f, "use {:?}", s),
         }

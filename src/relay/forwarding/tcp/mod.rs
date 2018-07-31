@@ -3,12 +3,13 @@ use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio_io::io::write_all;
 use tokio;
-use futures::Future;
+use futures::{Future, IntoFuture};
 use futures::future;
 use futures::future::Either;
 use failure::Error;
 use std::net::SocketAddr;
 use futures_cpupool::CpuPool;
+use net2::TcpBuilder;
 
 mod copy;
 mod inspect;
@@ -23,6 +24,9 @@ use socks::Socks5Stream;
 use std::time::Duration;
 use tokio::reactor::Handle;
 use self::copy::copy_verbose;
+use util::Either3;
+use std::net::IpAddr;
+use std::net;
 
 pub const TIMEOUT: u64 = 10;
 
@@ -66,11 +70,19 @@ fn carry_out(
     let p5 = pr;
     let s = match r {
         Route::Reset => return Either::A(future::ok(())),
-        Route::Direct => Either::A(
+        Route::Direct => Either3::A(
             tokio::net::TcpStream::connect(&a)
-                .map_err(move|e| format_err!("Error making {:?} connection to {:?}: {}", p1, a, e))
+                .map_err(move|e| format_err!("Error making direct {:?} connection to {:?}: {}", p1, a, e))
         ),
-        Route::Socks(x) => Either::B(
+        Route::From(ip) => Either3::B(
+            bind_tcp_socket(ip)
+                .into_future()
+                .and_then(move |x| {
+                    tokio::net::TcpStream::connect_std(x, &a, &Handle::current())
+                })
+                .map_err(move|e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", p1, a, ip, e))
+        ),
+        Route::Socks(x) => Either3::C(
             p.spawn_fn(move || -> io::Result<Socks5Stream> {
                 let ss = Socks5Stream::connect(x, a)?;
                 ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
@@ -101,4 +113,11 @@ fn run_copy<R, W>(reader: R, writer: W, a: SocketAddr, p: TcpProtocol, r: Route,
           W: AsyncWrite, {
     copy_verbose(reader, writer, d).map(|_x| ())
         .map_err(move |e| warn!("Error with {:?} with remote {:?} via {:?}: {}", p, a, r, e))
+}
+
+
+fn bind_tcp_socket(ip: IpAddr)-> io::Result<net::TcpStream> {
+    let builder = if ip.is_ipv4() { TcpBuilder::new_v4() } else { TcpBuilder::new_v6() }?;
+    let builder = builder.bind((ip, 0))?;
+    builder.to_tcp_stream()
 }

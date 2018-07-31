@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 mod conf;
 
 use bytes::Bytes;
@@ -61,6 +63,7 @@ impl TcpRouter {
         d.and_then(|x| match x.route {
             RoutingAction::Direct => Some(Route::Direct),
             RoutingAction::Reset => Some(Route::Reset),
+            RoutingAction::From(i) => Some(Route::From(i)),
             RoutingAction::Named(ref x) => self.gateways.get(x)
                 .map(|x| Route::Socks(SocketAddr::new(x.host, x.port))),
         })
@@ -70,6 +73,8 @@ impl TcpRouter {
 #[derive(Copy, Clone, Debug)]
 pub enum Route {
     Direct,
+    /// Bind to an address before connecting
+    From(IpAddr),
     Reset,
     Socks(SocketAddr),
 }

@@ -10,6 +10,7 @@ extern crate futures_cpupool;
 extern crate httparse;
 #[macro_use]
 extern crate log;
+extern crate net2;
 #[macro_use]
 extern crate nom;
 extern crate socks;
@@ -39,6 +40,7 @@ mod relay;
 mod resolver;
 mod ruling;
 mod cmd_options;
+pub mod util;
 
 use resolver::config::DnsProxyConf;
 use relay::run_with_conf;

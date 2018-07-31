@@ -1,6 +1,8 @@
 //! parse the configuration file
 use bytes::Bytes;
 use std::str;
+use std::str::FromStr;
+use std::net::IpAddr;
 use std::collections::BTreeMap;
 use nom::{
     digit1,
@@ -107,7 +109,8 @@ named!(read_decision<&[u8], RoutingDecision>,
         route: alt!(
             switch!(preceded!(pair!(tag!("do"), space1), var_name),
                         b"direct" => value!(RoutingAction::Direct) |
-                        b"reset" => value!(RoutingAction::Reset)
+                        b"reset" => value!(RoutingAction::Reset) |
+                        b"from" => map!(preceded!(space1, ip_addr), |p| RoutingAction::From(p))
                    ) |
             map!(map!(preceded!(pair!(tag!("use"), space1), var_name),
                       |bs: &[u8]| bs.into()),
@@ -157,8 +160,19 @@ named!(var_name<&[u8], &[u8]>,
     take_while!( is_alphanumunder )
 );
 
+named!(ip_addr<&[u8], IpAddr>,
+    map_res!(
+        map_res!(take_while!( is_ipchar ), str::from_utf8),
+        IpAddr::from_str
+    )
+);
+
 fn is_alphanumunder(c: u8)-> bool {
     c.is_ascii_alphanumeric() || c == b'_'
+}
+
+fn is_ipchar(c: u8)-> bool {
+    c.is_ascii_hexdigit() || c == b'.' || c == b':'
 }
 
 #[cfg(test)]
