@@ -104,18 +104,26 @@ fn carry_out(
         .and_then(move |(stream, _)| {
             let (ur, uw) = stream.split();
             let (cr, cw) = client_stream.split();
-            tokio::spawn(run_copy(ur, cw, a, p4, r.clone(), "server to client"));
-            tokio::spawn(run_copy(cr, uw, a, p5, r, "client to server"));
+            tokio::spawn(run_copy(ur, cw, a, p4, r.clone(), true));
+            tokio::spawn(run_copy(cr, uw, a, p5, r, false));
             Ok(())
         })
     )
 }
 
-fn run_copy<R, W>(reader: R, writer: W, a: SocketAddr, p: TcpProtocol, r: RoutingAction, d: &'static str) -> impl Future<Item=(), Error=()>
+fn run_copy<R, W>(reader: R, writer: W, a: SocketAddr, p: TcpProtocol, r: RoutingAction, s_to_c: bool) -> impl Future<Item=(), Error=()>
     where R: AsyncRead,
           W: AsyncWrite, {
-    copy_verbose(reader, writer, d).map(|_x| ())
-        .map_err(move |e| warn!("Error with {:?} with remote {:?} via {}: {}", p, a, r, e))
+    copy_verbose(reader, writer).map(|_x| ())
+        .map_err(move |e| {
+            if s_to_c {
+                if e.is_read() {
+                    warn!("Error reading proto {:?} from server {:?} via {}: {}", p, a, r, e);
+                }
+            } else if !e.is_read() {
+                warn!("Error writing proto {:?} to server {:?} via {}: {}", p, a, r, e);
+            }
+        } )
 }
 
 

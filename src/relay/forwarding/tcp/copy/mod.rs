@@ -1,5 +1,5 @@
+use std::io;
 use futures::{Future, Poll};
-use failure::Error;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 /// A future which will copy all data from a reader into a writer.
@@ -14,7 +14,27 @@ pub struct CopyVerbose<R, W> {
     cap: usize,
     amt: u64,
     buf: Box<[u8]>,
-    description: &'static str,
+}
+
+#[derive(Debug, Fail)]
+pub enum CopyError {
+    #[fail(display = "poll_read: {}", err)]
+    ReadError { err: io::Error },
+    #[fail(display = "poll_write: {}", err)]
+    WriteError { err: io::Error },
+    #[fail(display = "wrote zero bytes")]
+    WriteZero,
+    #[fail(display = "poll_flush: {}", err)]
+    FlushError { err: io::Error },
+}
+
+impl CopyError {
+    pub fn is_read(&self)-> bool {
+        match self {
+            &CopyError::ReadError { err: _ } => true,
+            _ => false
+        }
+    }
 }
 
 /// Creates a future which represents copying all the bytes from one object to
@@ -28,7 +48,7 @@ pub struct CopyVerbose<R, W> {
 /// On success the number of bytes is returned and the `reader` and `writer` are
 /// consumed. On error the error is returned and the I/O objects are consumed as
 /// well.
-pub fn copy_verbose<R, W>(reader: R, writer: W, description: &'static str) -> CopyVerbose<R, W>
+pub fn copy_verbose<R, W>(reader: R, writer: W) -> CopyVerbose<R, W>
     where R: AsyncRead,
           W: AsyncWrite,
 {
@@ -40,7 +60,6 @@ pub fn copy_verbose<R, W>(reader: R, writer: W, description: &'static str) -> Co
         pos: 0,
         cap: 0,
         buf: Box::new([0; 2048]),
-        description,
     }
 }
 
@@ -49,9 +68,9 @@ impl<R, W> Future for CopyVerbose<R, W>
           W: AsyncWrite,
 {
     type Item = (u64, R, W);
-    type Error = Error;
+    type Error = CopyError;
 
-    fn poll(&mut self) -> Poll<(u64, R, W), Error> {
+    fn poll(&mut self) -> Poll<(u64, R, W), CopyError> {
         loop {
             // If our buffer is empty, then we need to read some data to
             // continue.
@@ -59,10 +78,8 @@ impl<R, W> Future for CopyVerbose<R, W>
                 let r = {
                     let reader = self.reader.as_mut().unwrap();
                     reader.poll_read(&mut self.buf)
-                };
-                let n = try_ready!(r.map_err(|e| {
-                    format_err!("Error reading {}: {}", self.description, e)
-                }));
+                }.map_err(|e| CopyError::ReadError { err: e } );
+                let n = try_ready!(r);
                 if n == 0 {
                     self.read_done = true;
                 } else {
@@ -76,12 +93,10 @@ impl<R, W> Future for CopyVerbose<R, W>
                 let w = {
                     let writer = self.writer.as_mut().unwrap();
                     writer.poll_write(&self.buf[self.pos..self.cap])
-                };
-                let i = try_ready!(w.map_err(|e| {
-                    format_err!("Error writing {}: {}", self.description, e)
-                }));
+                }.map_err(|e| CopyError::WriteError { err: e});
+                let i = try_ready!(w);
                 if i == 0 {
-                    return Err(format_err!("Error writing zero byte with {}", self.description));
+                    return Err(CopyError::WriteZero);
                 } else {
                     self.pos += i;
                     self.amt += i as u64;
@@ -92,7 +107,9 @@ impl<R, W> Future for CopyVerbose<R, W>
             // data and finish the transfer.
             // done with the entire transfer.
             if self.pos == self.cap && self.read_done {
-                try_ready!(self.writer.as_mut().unwrap().poll_flush());
+                try_ready!(self.writer.as_mut().unwrap().poll_flush().map_err(|e| {
+                    CopyError::FlushError { err: e}
+                }));
                 let reader = self.reader.take().unwrap();
                 let writer = self.writer.take().unwrap();
                 return Ok((self.amt, reader, writer).into())

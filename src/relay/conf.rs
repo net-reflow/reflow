@@ -34,9 +34,21 @@ pub struct DnsConf {
 }
 
 #[derive(Clone, Deserialize, Debug)]
-pub struct GatewayConf {
-    pub host: IpAddr,
-    pub port: u16,
+struct GatewayConf {
+    kind: String,
+    host: Option<IpAddr>,
+    port: Option<u16>,
+    ip: Option<IpAddr>,
+}
+
+impl GatewayConf {
+    fn parse(&self)->Gateway {
+        match self.kind.as_ref() {
+            "socks5" => Gateway::Socks5(SocketAddr::from((self.host.unwrap(), self.port.unwrap()))),
+            "bind" => Gateway::From(self.ip.unwrap()),
+            x => panic!("Unknown gateway type {}", x),
+        }
+    }
 }
 
 impl AppConf {
@@ -52,8 +64,7 @@ impl AppConf {
         self.gateway.iter()
             .map(|(k,v)| -> (Bytes, Gateway) {
                 let k:&str = k.as_ref();
-                let s = SocketAddr::from((v.host, v.port));
-                let g = Gateway::Socks5(s);
+                let g = v.parse();
                 (k.into(), g)
             }).collect()
     }

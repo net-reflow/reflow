@@ -1,10 +1,13 @@
-extern crate droxy;
+extern crate reflow;
 
-use droxy::run;
+use std::process;
+
+use reflow::run;
 
 fn main() {
     println!("Hello, world!");
     if let Err(e) = run() {
         println!("error: {:?}", e);
+        process::exit(1);
     };
 }

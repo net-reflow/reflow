@@ -19,6 +19,7 @@ mod fail_count;
 
 use self::fail_count::FailureCounter;
 use super::super::dnsclient::flat_result_future;
+use futures::future::Either;
 
 /// Do dns queries through a socks5 proxy
 pub struct SockGetterAsync {
@@ -46,10 +47,10 @@ impl SockGetterAsync {
         sga
     }
 
-    pub fn get(&self, message: Vec<u8>) -> Box<Future<Item=Vec<u8>, Error=io::Error> + Send> {
+    pub fn get(&self, message: Vec<u8>) -> impl Future<Item=Vec<u8>, Error=io::Error> + Send {
         if self.watcher.should_wait() {
             debug!("{:?} using tcp", self);
-            return flat_result_future(self.get_tcp(message));
+            return Either::A(flat_result_future(self.get_tcp(message)));
         } else {
             let f = flat_result_future(self.get_udp(message));
             let watch = self.watcher.clone();
@@ -64,7 +65,7 @@ impl SockGetterAsync {
                         Err(e)
                     }
                 });
-            Box::new(f)
+            Either::B(f)
         }
     }
 
