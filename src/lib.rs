@@ -44,6 +44,7 @@ pub mod util;
 
 use resolver::config::DnsProxyConf;
 use relay::run_with_conf;
+use relay::AppConf;
 
 pub fn run()-> Result<(), Box<Error>> {
     env_logger::Builder::from_default_env()
@@ -57,13 +58,14 @@ pub fn run()-> Result<(), Box<Error>> {
     let ip_matcher = Arc::new(ruling::IpMatcher::new(config_path)?);
     let d = Arc::new(ruling::DomainMatcher::new(config_path)?);
 
-    let conf = DnsProxyConf::new(&config_path.join("resolve.config"))?;
+    let rc = AppConf::new(&config_path)?;
+    let dns_conf = DnsProxyConf::from_conf(&rc.dns, rc.get_gateways())?;
     let mut rt = Runtime::new()?;
     rt.spawn( future::lazy(move || {
-        if let Err(e) = run_with_conf(&conf1, d.clone(), ip_matcher, pool.clone()) {
+        if let Err(e) = run_with_conf(&rc, &conf1, d.clone(), ip_matcher, pool.clone()) {
             error!("Relay error: {:?}", e);
         }
-        let ds = resolver::serve(d.clone(), conf, pool);
+        let ds = resolver::serve(d.clone(), dns_conf, pool);
         if let Err(e) = ds {
             error!("Dns server error: {:?}", e);
         }
