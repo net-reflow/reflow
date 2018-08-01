@@ -8,7 +8,7 @@ use super::client::udp::udp_get;
 use futures_cpupool::CpuPool;
 use std::io;
 use super::config::DnsUpstream;
-use relay::conf::SocksConf;
+use relay::forwarding::Gateway;
 
 #[derive(Debug)]
 pub enum  DnsClient {
@@ -17,14 +17,20 @@ pub enum  DnsClient {
 }
 
 impl DnsClient {
-    pub fn new(up: &DnsUpstream<SocksConf>, pool: &CpuPool)
-        -> DnsClient{
+    pub fn new(up: &DnsUpstream<Gateway>, pool: &CpuPool)
+               -> DnsClient{
         match up.gateway {
             Some(ref a) => {
-                let s = SocketAddr::from((a.host, a.port));
-                DnsClient::ViaSocks5(
-                    SockGetterAsync::new(pool.clone(), s, up.addr)
-                )
+                match a {
+                    Gateway::Socks5(s) => {
+                        DnsClient::ViaSocks5(
+                            SockGetterAsync::new(pool.clone(), *s, up.addr)
+                        )
+                    }
+                    Gateway::From(_i) => {
+                        DnsClient::Direct(up.addr)
+                    }
+                }
             }
             None => DnsClient::Direct(up.addr)
         }

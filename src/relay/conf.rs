@@ -7,12 +7,13 @@ use std::fs;
 use toml;
 use bytes::Bytes;
 use resolver::config::DnsUpstream;
+use relay::forwarding::Gateway;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConf {
     pub relay: RelayConf,
     pub dns: DnsConf,
-    gateway: BTreeMap<String, SocksConf>,
+    gateway: BTreeMap<String, GatewayConf>,
 }
 
 #[derive(Clone, Deserialize, Debug)]
@@ -33,7 +34,7 @@ pub struct DnsConf {
 }
 
 #[derive(Clone, Deserialize, Debug)]
-pub struct SocksConf {
+pub struct GatewayConf {
     pub host: IpAddr,
     pub port: u16,
 }
@@ -47,11 +48,13 @@ impl AppConf {
         Ok(conf)
     }
 
-    pub fn get_gateways(&self)-> BTreeMap<Bytes, SocksConf> {
+    pub fn get_gateways(&self)-> BTreeMap<Bytes, Gateway> {
         self.gateway.iter()
-            .map(|(k,v)| -> (Bytes, SocksConf) {
+            .map(|(k,v)| -> (Bytes, Gateway) {
                 let k:&str = k.as_ref();
-                (k.into(), v.clone())
+                let s = SocketAddr::from((v.host, v.port));
+                let g = Gateway::Socks5(s);
+                (k.into(), g)
             }).collect()
     }
 }

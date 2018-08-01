@@ -22,8 +22,8 @@ pub fn run_with_conf<'a>(conf: &AppConf,
                          p: CpuPool,
 ) -> Result<(), Error> {
     let resolver = Arc::new(create_resolver(conf.relay.resolver));
-    let tcp_rules = load_reflow_rules(&path.join("tcp.reflow"))?;
-    let router = TcpRouter::new(d, i, tcp_rules, conf.get_gateways());
+    let tcp_rules = load_reflow_rules(&path.join("tcp.reflow"), &conf.get_gateways())?;
+    let router = TcpRouter::new(d, i, tcp_rules);
     listen_socks(&conf.relay.listen_socks, resolver, Arc::new(router), p)?;
     Ok(())
 }

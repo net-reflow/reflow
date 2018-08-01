@@ -2,25 +2,27 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fmt::{Formatter, Error};
+use std::fmt::{Formatter};
 use std::path::Path;
 use std::fs;
 use failure::Error as FailureError;
+use failure::Error;
 use bytes::Bytes;
 
 mod text;
 
 use self::text::get_reflow;
 use relay::forwarding::routing::TcpTrafficInfo;
-use std::sync::Arc;
 use std::net::IpAddr;
+use std::net::SocketAddr;
 
 #[allow(dead_code)]
-pub fn load_reflow_rules(p: &Path)-> Result<RoutingBranch, FailureError> {
+pub fn load_reflow_rules(p: &Path, gw: &BTreeMap<Bytes, Gateway>)-> Result<RoutingBranch, FailureError> {
     let bs = fs::read(p)?;
-    let (_, x) = get_reflow(&bs)
+    let (_, mut r) = get_reflow(&bs)
         .map_err(|_| format_err!("error parsing tcp.reflow"))?;
-    Ok(x)
+    r.insert_gateways(gw)?;
+    Ok(r)
 }
 
 pub enum RoutingBranch {
@@ -29,12 +31,12 @@ pub enum RoutingBranch {
     Sequential(Vec<RoutingBranch>),
     Conditional(RoutingCondition),
     /// a match is found
-    Final(Arc<RoutingDecision>)
+    Final(RoutingDecision)
 }
 
 
 impl RoutingBranch {
-    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<Arc<RoutingDecision>> {
+    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
         use self::RoutingBranch::*;
         match self {
             Final(d) => Some(d.clone()),
@@ -51,7 +53,23 @@ impl RoutingBranch {
     }
 
     fn new_final(x: RoutingDecision)-> RoutingBranch {
-        RoutingBranch::Final(Arc::new(x))
+        RoutingBranch::Final(x)
+    }
+
+    pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Gateway>)-> Result<(), Error> {
+        use self::RoutingBranch::*;
+        match self {
+            Final(ref mut d) =>{
+                d.route.insert_gateways(gw)?
+            }
+            Conditional(ref mut c) => c.insert_gateways(gw)?,
+            Sequential(ref mut s) => {
+                for mut r in s {
+                    r.insert_gateways(gw)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -63,7 +81,7 @@ pub enum RoutingCondition {
 }
 
 impl RoutingCondition {
-    fn decide(&self, info: &TcpTrafficInfo)-> Option<Arc<RoutingDecision>> {
+    fn decide(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
         use self::RoutingCondition::*;
         match self {
             Domain(x) => {
@@ -75,29 +93,78 @@ impl RoutingCondition {
             Protocol(x) => x.get(info.protocol.name())?.decision(info),
         }
     }
+
+    fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Gateway>) -> Result<(), Error> {
+        use self::RoutingCondition::*;
+        let m = match self {
+            Port(_, ref mut b) => {
+                return b.insert_gateways(gw);
+            }
+            Domain(x) => x,
+            IpAddr(x) => x,
+            Protocol(x) => x,
+        };
+        for (_k, mut v) in m {
+            v.insert_gateways(gw)?;
+        }
+        Ok(())
+    }
 }
 
+#[derive(Clone)]
 pub struct RoutingDecision {
     pub route: RoutingAction,
     additional: Vec<AdditionalAction>,
 }
 
 /// a chosen route
+#[derive(Clone)]
 pub enum RoutingAction {
     Direct,
-    /// Bind to an address before connecting
-    From(IpAddr),
     Reset,
-    Named(Bytes)
+    Named(NamedGateway),
 }
 
+impl RoutingAction {
+    fn new_named(x: Bytes) -> RoutingAction {
+        let g = NamedGateway { name: x, gateway: None};
+        RoutingAction::Named(g)
+    }
+
+    pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Gateway>)-> Result<(), Error> {
+        match self {
+            RoutingAction::Named(n) => {
+                let g = gw.get(&n.name)
+                    .ok_or_else(|| format_err!("Unknown gateway {:?}", n.name))?;
+                n.gateway = Some(*g);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct NamedGateway {
+    name: Bytes,
+    pub gateway: Option<Gateway>,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum Gateway {
+    Socks5(SocketAddr),
+    /// Bind to an address before connecting
+    From(IpAddr),
+}
+
+#[derive(Clone)]
 enum AdditionalAction {
     PrintLog,
     SaveSample,
 }
 
 impl fmt::Display for RoutingBranch {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use self::RoutingBranch::*;
         match self {
             Sequential(x) => {
@@ -115,7 +182,7 @@ impl fmt::Display for RoutingBranch {
 }
 
 impl fmt::Display for RoutingCondition {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use self::RoutingCondition::*;
         match self {
             Domain(ref m) => { write!(f, "domain ")?; print_mapping(m, f)?; }
@@ -128,13 +195,13 @@ impl fmt::Display for RoutingCondition {
 }
 
 impl fmt::Debug for RoutingDecision {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         write!(f, "{}", self)
     }
 }
 
 impl fmt::Display for RoutingDecision {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         write!(f, "{}", self.route)?;
         for i in self.additional.iter() {
             write!(f, " and {}", i)?;
@@ -144,13 +211,12 @@ impl fmt::Display for RoutingDecision {
 }
 
 impl fmt::Display for RoutingAction {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use self::RoutingAction::*;
         match self {
             Direct => write!(f, "do direct"),
-            From(i) => write!(f, "from {:?}", i),
             Reset  => write!(f, "do reset"),
-            Named(s) => write!(f, "use {:?}", s),
+            Named(s) => write!(f, "use {:?}", s.name),
         }
     }
 }
@@ -166,7 +232,7 @@ impl fmt::Display for AdditionalAction {
 }
 
 fn print_mapping(map: &BTreeMap<Bytes, RoutingBranch>, f: &mut Formatter)
-                 -> Result<(), Error> {
+                 -> Result<(), fmt::Error> {
     write!(f, "{{\n")?;
     for (k,v) in map.iter() {
         write!(f, "{:?} => {}\n", k, v)?;

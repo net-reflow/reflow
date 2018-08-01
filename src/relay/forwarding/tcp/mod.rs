@@ -18,7 +18,6 @@ pub use self::inspect::TcpProtocol;
 use std::sync::Arc;
 use relay::TcpRouter;
 use bytes::Bytes;
-use relay::forwarding::routing::Route;
 use tokio::io;
 use socks::Socks5Stream;
 use std::time::Duration;
@@ -27,6 +26,8 @@ use self::copy::copy_verbose;
 use util::Either3;
 use std::net::IpAddr;
 use std::net;
+use relay::forwarding::routing::conf::RoutingAction;
+use relay::forwarding::Gateway;
 
 pub const TIMEOUT: u64 = 10;
 
@@ -43,7 +44,7 @@ pub fn handle_incoming_tcp(
             let p = client_stream.peer_addr();
             if let Some(r) = r {
                 Either::A(carry_out(
-                    tcp.bytes.freeze(), a, r, client_stream, pool,
+                    tcp.bytes.freeze(), a, r.route.clone(), client_stream, pool,
                     tcp.protocol,
                 ))
             } else {
@@ -58,7 +59,7 @@ pub fn handle_incoming_tcp(
 fn carry_out(
     data: Bytes,
     a: SocketAddr,
-    r: Route,
+    r: RoutingAction,
     client_stream: TcpStream,
     p: CpuPool,
     pr: TcpProtocol,
@@ -69,31 +70,33 @@ fn carry_out(
     let p4= pr.clone();
     let p5 = pr;
     let s = match r {
-        Route::Reset => return Either::A(future::ok(())),
-        Route::Direct => Either3::A(
+        RoutingAction::Reset => return Either::A(future::ok(())),
+        RoutingAction::Direct => Either3::A(
             tokio::net::TcpStream::connect(&a)
                 .map_err(move|e| format_err!("Error making direct {:?} connection to {:?}: {}", p1, a, e))
         ),
-        Route::From(ip) => Either3::B(
-            bind_tcp_socket(ip)
-                .into_future()
-                .and_then(move |x| {
-                    tokio::net::TcpStream::connect_std(x, &a, &Handle::current())
+        RoutingAction::Named(ref g) => match g.gateway.unwrap() {
+            Gateway::From(ip) => Either3::B(
+                bind_tcp_socket(ip)
+                    .into_future()
+                    .and_then(move |x| {
+                        tokio::net::TcpStream::connect_std(x, &a, &Handle::current())
+                    })
+                    .map_err(move|e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", p1, a, ip, e))
+            ),
+            Gateway::Socks5(x)=> Either3::C(
+                p.spawn_fn(move || -> io::Result<Socks5Stream> {
+                    let ss = Socks5Stream::connect(x, a)?;
+                    ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
+                    Ok(ss)
+                }).and_then(|ss| {
+                    let ts = ss.into_inner();
+                    TcpStream::from_std(ts, &Handle::current())
+                }).map_err(move |e| {
+                    format_err!("Error making {:?} connection to {:?} through {:?}: {}", p3, a, x, e)
                 })
-                .map_err(move|e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", p1, a, ip, e))
-        ),
-        Route::Socks(x) => Either3::C(
-            p.spawn_fn(move || -> io::Result<Socks5Stream> {
-                let ss = Socks5Stream::connect(x, a)?;
-                ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-                Ok(ss)
-            }).and_then(|ss| {
-                let ts = ss.into_inner();
-                TcpStream::from_std(ts, &Handle::current())
-            }).map_err(move |e| {
-                format_err!("Error making {:?} connection to {:?} through {:?}: {}", p3, a, x, e)
-            })
-        ),
+            ),
+        }
     };
     Either::B(s
         .and_then(move |stream| write_all(stream, data)
@@ -101,18 +104,18 @@ fn carry_out(
         .and_then(move |(stream, _)| {
             let (ur, uw) = stream.split();
             let (cr, cw) = client_stream.split();
-            tokio::spawn(run_copy(ur, cw, a, p4, r, "server to client"));
+            tokio::spawn(run_copy(ur, cw, a, p4, r.clone(), "server to client"));
             tokio::spawn(run_copy(cr, uw, a, p5, r, "client to server"));
             Ok(())
         })
     )
 }
 
-fn run_copy<R, W>(reader: R, writer: W, a: SocketAddr, p: TcpProtocol, r: Route, d: &'static str) -> impl Future<Item=(), Error=()>
+fn run_copy<R, W>(reader: R, writer: W, a: SocketAddr, p: TcpProtocol, r: RoutingAction, d: &'static str) -> impl Future<Item=(), Error=()>
     where R: AsyncRead,
           W: AsyncWrite, {
     copy_verbose(reader, writer, d).map(|_x| ())
-        .map_err(move |e| warn!("Error with {:?} with remote {:?} via {:?}: {}", p, a, r, e))
+        .map_err(move |e| warn!("Error with {:?} with remote {:?} via {}: {}", p, a, r, e))
 }
 
 

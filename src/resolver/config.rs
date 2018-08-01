@@ -5,13 +5,13 @@ use failure::Error;
 use bytes::Bytes;
 
 use relay::conf::DnsConf;
-use relay::conf::SocksConf;
+use relay::forwarding::Gateway;
 
 #[derive(Debug)]
 pub struct DnsProxyConf {
     pub listen: SocketAddr,
-    pub resolv: BTreeMap<Bytes, DnsUpstream<SocksConf>>,
-    pub default: DnsUpstream<SocksConf>,
+    pub resolv: BTreeMap<Bytes, DnsUpstream<Gateway>>,
+    pub default: DnsUpstream<Gateway>,
 }
 
 /// Address of upstream dns server
@@ -23,8 +23,8 @@ pub struct DnsUpstream<T> {
 }
 
 /// replace named gateways with actual values
-fn deref_route(d: DnsUpstream<String>, gw: &BTreeMap<Bytes, SocksConf>)
-               -> Result<DnsUpstream<SocksConf>, Error> {
+fn deref_route(d: DnsUpstream<String>, gw: &BTreeMap<Bytes, Gateway>)
+               -> Result<DnsUpstream<Gateway>, Error> {
     let g = match d.gateway {
         Some(ref x) => {
             let x: &[u8] = x.as_bytes();
@@ -48,7 +48,7 @@ fn deref_server(name: &str, servers: &BTreeMap<String, DnsUpstream<String>>)
 }
 
 impl DnsProxyConf {
-    pub fn from_conf(d: &DnsConf, gw: BTreeMap<Bytes, SocksConf>) -> Result<DnsProxyConf, Error> {
+    pub fn from_conf(d: &DnsConf, gw: BTreeMap<Bytes, Gateway>) -> Result<DnsProxyConf, Error> {
         let servers = &d.server;
         let default = d.rule.get("else")
             .ok_or(format_err!("no default dns server defined"))
