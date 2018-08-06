@@ -1,18 +1,24 @@
 use std::io;
+use std::time;
+
 use futures::{Future, Poll};
+use tokio::timer::Delay;
 use tokio_io::{AsyncRead, AsyncWrite};
+use futures::Async;
 
 /// A future which will copy all data from a reader into a writer.
 /// modified version of Copy from tokio
 /// prints more verbose logs
 #[derive(Debug)]
-pub struct CopyVerbose<R, W> {
+pub struct CopyVerboseTime<R, W> {
     reader: Option<R>,
     read_done: bool,
     writer: Option<W>,
     pos: usize,
     cap: usize,
     amt: u64,
+    timeout: time::Duration,
+    timer: Option<Delay>,
     buf: Box<[u8]>,
 }
 
@@ -20,6 +26,8 @@ pub struct CopyVerbose<R, W> {
 pub enum CopyError {
     #[fail(display = "poll_read: {}", err)]
     ReadError { err: io::Error },
+    #[fail(display = "read nothing in a long time")]
+    ReadTimeout,
     #[fail(display = "poll_write: {}", err)]
     WriteError { err: io::Error },
     #[fail(display = "wrote zero bytes")]
@@ -32,6 +40,7 @@ impl CopyError {
     pub fn is_read(&self)-> bool {
         match self {
             &CopyError::ReadError { err: _ } => true,
+            &CopyError::ReadTimeout => true,
             _ => false
         }
     }
@@ -48,22 +57,24 @@ impl CopyError {
 /// On success the number of bytes is returned and the `reader` and `writer` are
 /// consumed. On error the error is returned and the I/O objects are consumed as
 /// well.
-pub fn copy_verbose<R, W>(reader: R, writer: W) -> CopyVerbose<R, W>
+pub fn copy_verbose<R, W>(reader: R, writer: W) -> CopyVerboseTime<R, W>
     where R: AsyncRead,
           W: AsyncWrite,
 {
-    CopyVerbose {
+    CopyVerboseTime {
         reader: Some(reader),
         read_done: false,
         writer: Some(writer),
         amt: 0,
         pos: 0,
         cap: 0,
+        timeout: time::Duration::from_secs(500),
+        timer: None,
         buf: Box::new([0; 2048]),
     }
 }
 
-impl<R, W> Future for CopyVerbose<R, W>
+impl<R, W> Future for CopyVerboseTime<R, W>
     where R: AsyncRead,
           W: AsyncWrite,
 {
@@ -78,8 +89,17 @@ impl<R, W> Future for CopyVerbose<R, W>
                 let r = {
                     let reader = self.reader.as_mut().unwrap();
                     reader.poll_read(&mut self.buf)
-                }.map_err(|e| CopyError::ReadError { err: e } );
-                let n = try_ready!(r);
+                }.map_err(|e| CopyError::ReadError { err: e } )?;
+                let n = match r {
+                    Async::Ready(x) => {
+                        self.clear_timer();
+                        x
+                    },
+                    Async::NotReady => {
+                        self.test_timeout()?;
+                        return Ok(Async::NotReady);
+                    }
+                };
                 if n == 0 {
                     self.read_done = true;
                 } else {
@@ -116,4 +136,27 @@ impl<R, W> Future for CopyVerbose<R, W>
             }
         }
     }
+}
+
+impl<R, W> CopyVerboseTime<R, W>
+    where R: AsyncRead,
+          W: AsyncWrite,
+{
+    fn test_timeout(&mut self) -> Result<(), CopyError> {
+        if self.timer.is_none() {
+            self.timer = Some(Delay::new(time::Instant::now() + self.timeout));
+        }
+        if let Some(ref mut t) = self.timer {
+            match t.poll().unwrap() {
+                Async::Ready(()) => return Err(CopyError::ReadTimeout),
+                Async::NotReady => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn clear_timer(&mut self) {
+        let _ = self.timer.take();
+    }
+
 }
