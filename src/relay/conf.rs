@@ -7,7 +7,7 @@ use std::fs;
 use toml;
 use bytes::Bytes;
 use resolver::config::DnsUpstream;
-use relay::forwarding::Gateway;
+use conf::Gateway;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConf {

@@ -8,7 +8,7 @@ use super::client::udp::udp_get;
 use futures_cpupool::CpuPool;
 use std::io;
 use super::config::DnsUpstream;
-use relay::forwarding::Gateway;
+use conf::Gateway;
 use std::net::IpAddr;
 use std::net::UdpSocket as StdUdpSocket;
 use tokio::net::UdpSocket;

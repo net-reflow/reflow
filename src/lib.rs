@@ -39,7 +39,7 @@ use tokio::runtime::Runtime;
 mod proto;
 mod relay;
 mod resolver;
-mod ruling;
+mod conf;
 mod cmd_options;
 pub mod util;
 
@@ -56,8 +56,8 @@ pub fn run()-> Result<(), Box<Error>> {
     let conf1 = config_path.clone();
     let pool = CpuPool::new_num_cpus();
 
-    let ip_matcher = Arc::new(ruling::IpMatcher::new(config_path)?);
-    let d = Arc::new(ruling::DomainMatcher::new(config_path)?);
+    let ip_matcher = Arc::new(conf::IpMatcher::new(config_path)?);
+    let d = Arc::new(conf::DomainMatcher::new(config_path)?);
 
     let rc = AppConf::new(&config_path)?;
     let dns_conf = DnsProxyConf::from_conf(&rc.dns, rc.get_gateways())?;

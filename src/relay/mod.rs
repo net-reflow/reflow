@@ -1,18 +1,18 @@
 use failure::Error;
 use std::sync::Arc;
 
-pub mod incoming;
-mod upstream;
+pub mod listen;
+mod inspect;
 pub mod forwarding;
 pub mod conf;
 
 pub use self::forwarding::TcpRouter;
-use self::incoming::listen_socks;
+use self::listen::listen_socks;
 pub use self::conf::AppConf;
 use std::path::Path;
 use resolver::create_resolver;
-use relay::forwarding::load_reflow_rules;
-use ruling::{DomainMatcher,IpMatcher};
+use conf::load_reflow_rules;
+use conf::{DomainMatcher,IpMatcher};
 use futures_cpupool::CpuPool;
 
 pub fn run_with_conf<'a>(conf: &AppConf,

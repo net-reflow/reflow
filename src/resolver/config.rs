@@ -5,7 +5,7 @@ use failure::Error;
 use bytes::Bytes;
 
 use relay::conf::DnsConf;
-use relay::forwarding::Gateway;
+use conf::Gateway;
 
 #[derive(Debug)]
 pub struct DnsProxyConf {

@@ -10,7 +10,7 @@ use trust_dns::rr::LowerName;
 
 use super::dnsclient::DnsClient;
 use super::config::DnsProxyConf;
-use super::super::ruling::DomainMatcher;
+use conf::DomainMatcher;
 use trust_dns::serialize::binary::BinDecoder;
 use trust_dns::serialize::binary::BinDecodable;
 use futures_cpupool::CpuPool;

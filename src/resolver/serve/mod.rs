@@ -8,7 +8,7 @@ use futures_cpupool::CpuPool;
 use tokio;
 use std::sync::Arc;
 
-use ruling::DomainMatcher;
+use conf::DomainMatcher;
 use resolver::config::DnsProxyConf;
 use resolver::handler;
 

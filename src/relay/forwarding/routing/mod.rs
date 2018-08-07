@@ -1,16 +1,11 @@
-
-pub mod conf;
-
 use bytes::Bytes;
-pub use self::conf::RoutingDecision;
-pub use self::conf::load_reflow_rules;
-pub use self::conf::Gateway;
 use std::sync::Arc;
 use std::net::SocketAddr;
 
-use ruling::{DomainMatcher, IpMatcher};
-use relay::forwarding::routing::conf::RoutingBranch;
-use relay::forwarding::tcp::TcpProtocol;
+use conf::{DomainMatcher, IpMatcher};
+use conf::RoutingBranch;
+use relay::inspect::TcpProtocol;
+use conf::RoutingDecision;
 
 #[derive(Debug)]
 pub struct TcpTrafficInfo<'a> {
@@ -27,6 +22,14 @@ impl<'a> TcpTrafficInfo<'a> {
 
     pub fn ip_region(&self) -> Option<&[u8]> {
         if let Some(ref x) = self.ip_region { Some(x) } else { None }
+    }
+
+    pub fn addr(&self)->SocketAddr {
+        self.addr
+    }
+
+    pub fn protocol(&self)->&TcpProtocol {
+        self.protocol
     }
 }
 

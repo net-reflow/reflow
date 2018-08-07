@@ -89,8 +89,8 @@ impl RoutingCondition {
                 r.decision(info)
             }
             IpAddr(x) => x.get(info.ip_region()?)?.decision(info),
-            Port(x, y) => if info.addr.port() != *x { None } else { y.decision(info) },
-            Protocol(x) => x.get(info.protocol.name())?.decision(info),
+            Port(x, y) => if info.addr().port() != *x { None } else { y.decision(info) },
+            Protocol(x) => x.get(info.protocol().name())?.decision(info),
         }
     }
 

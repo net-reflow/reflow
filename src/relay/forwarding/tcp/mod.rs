@@ -12,9 +12,6 @@ use futures_cpupool::CpuPool;
 use net2::TcpBuilder;
 
 mod copy;
-mod inspect;
-use self::inspect::ParseFirstPacket;
-pub use self::inspect::TcpProtocol;
 use std::sync::Arc;
 use relay::TcpRouter;
 use bytes::Bytes;
@@ -26,8 +23,10 @@ use self::copy::copy_verbose;
 use util::Either3;
 use std::net::IpAddr;
 use std::net;
-use relay::forwarding::routing::conf::RoutingAction;
-use relay::forwarding::Gateway;
+use conf::RoutingAction;
+use conf::Gateway;
+use relay::inspect::ParseFirstPacket;
+use relay::inspect::TcpProtocol;
 
 pub const TIMEOUT: u64 = 10;
 
