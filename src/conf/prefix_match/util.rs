@@ -4,7 +4,56 @@ use std::collections::HashMap;
 use std::path;
 use bytes::Bytes;
 
-pub fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+pub fn find_domain_map_files(config: &path::Path)->io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+    let p = config.join("namezone");
+    let mut m = if p.exists() {
+        find_map_files(&p)?
+    } else {
+        HashMap::new()
+    };
+    let m1 = find_confs(config, "region")?;
+    merge_map_vec_value(&mut m, m1);
+    Ok(m)
+}
+pub fn find_addr_map_files(config: &path::Path)->io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+    let p = config.join("addrzone");
+    let mut m = if p.exists() {
+        find_map_files(&p)?
+    } else {
+        HashMap::new()
+    };
+    let m1 = find_confs(config, "ipregion")?;
+    merge_map_vec_value(&mut m, m1);
+    Ok(m)
+}
+fn find_map_files(path: &path::Path)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+    let mut m = HashMap::new();
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let ftype = entry.file_type()?;
+        let n = entry.file_name();
+        let name = n.to_str().expect("Bad encoding in filename");
+        let nb: Bytes = name.into();
+        if ftype.is_file() {
+            m.insert(nb, vec![entry]);
+        } else if ftype.is_dir() {
+            m.insert(nb, find_dir_entris(entry)?);
+        }
+    }
+    Ok(m)
+}
+/// merge two HashMaps whose values are both vectors
+fn merge_map_vec_value(m0: &mut HashMap<Bytes, Vec<DirEntry>>, m1: HashMap<Bytes, Vec<DirEntry>>) {
+    for (k,v) in m1.into_iter() {
+        if m0.get(&k).is_some()  {
+            m0.get_mut(&k).unwrap().extend(v);
+        } else {
+            m0.insert(k, v);
+        }
+    }
+}
+/// deprecated
+fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>{
     let mut region_map = HashMap::new();
     for entry in fs::read_dir(path)? {
         let file = entry?;

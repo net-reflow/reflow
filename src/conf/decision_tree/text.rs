@@ -16,23 +16,24 @@ use super::{
     RoutingCondition,
     RoutingDecision
 };
+use super::super::util::{line_sep, opt_line_sep};
 
 named!(pub get_reflow<&[u8], RoutingBranch>,
     do_parse!(
-        tag_s!("Tree-Format: reflow 0.1") >>
-
-        v: many1!(
-            preceded!(newline_maybe_space,
-                alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
-                           map!(read_cond, |c| RoutingBranch::Conditional(c))))) >>
-        ( RoutingBranch::Sequential(v) )
+        opt_line_sep >>
+        items: separated_nonempty_list_complete!(line_sep, cond_or_deci) >>
+        ( RoutingBranch::Sequential(items) )
     )
+);
+
+named!(cond_or_deci<&[u8], RoutingBranch>,
+    alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
+         map!(read_cond, |c| RoutingBranch::Conditional(c)))
 );
 
 named!(read_cond<&[u8], RoutingCondition>,
     do_parse!(
-        tag_s!("cond") >>
-        space1 >>
+        tag!("cond") >> space1 >>
         kind: var_name >>
         space0 >>
         d: switch!(value!(kind),
@@ -47,11 +48,9 @@ named!(read_cond<&[u8], RoutingCondition>,
 
 named!(read_mapping<&[u8], BTreeMap<Bytes, RoutingBranch> >,
     do_parse!(
-        char!('{') >>
-        multispace0 >>
+        char!('{') >> opt_line_sep >>
         m: dbg_dmp!(read_map) >>
-        multispace0 >>
-        char!('}') >>
+        opt_line_sep >> char!('}') >>
         ( m )
     )
 );
@@ -77,7 +76,7 @@ named!(read_u16<&[u8], u16>,
 
 named!(read_map<&[u8], BTreeMap<Bytes, RoutingBranch> >,
     do_parse!(
-        entries: separated_nonempty_list!(newline_maybe_space, read_map_entry) >>
+        entries: separated_nonempty_list!(line_sep, read_map_entry) >>
         ( entries.into_iter().collect() )
     )
 );
@@ -94,8 +93,8 @@ space0 >>
     )
 );
 
-named!(read_branch<&[u8], RoutingBranch>,
-    alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
+named!(pub read_branch<&[u8], RoutingBranch>,
+    alt_complete!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
          preceded!(tuple!(tag!("any"), space0), delimited!(tag!("["), read_sequential, tag!("]"))) |
          map!(read_cond, |c| RoutingBranch::Conditional(c))
         )
@@ -132,13 +131,13 @@ named!(read_additional_action<&[u8], AdditionalAction>,
 
 named!(read_sequential<&[u8], RoutingBranch>,
     do_parse!(
-        multispace0 >>
-        items:   separated_nonempty_list!(newline_maybe_space,
-                      alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
+        opt_line_sep >>
+        items:   separated_nonempty_list!(line_sep,
+                      alt_complete!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
                            map!(read_cond, |c| RoutingBranch::Conditional(c))
                           )
                  ) >>
-        multispace0 >>
+        opt_line_sep >>
         ( RoutingBranch::Sequential(items) )
     )
 );
@@ -153,12 +152,12 @@ named!(newline_maybe_space<&[u8], ()>,
     ))
 );
 
-named!(var_name<&[u8], &[u8]>,
+named!(pub var_name<&[u8], &[u8]>,
     take_while!( is_alphanumunder )
 );
 
 fn is_alphanumunder(c: u8)-> bool {
-    c.is_ascii_alphanumeric() || c == b'_'
+    c.is_ascii_alphanumeric() || c == b'_' || c == b'-'
 }
 
 #[cfg(test)]

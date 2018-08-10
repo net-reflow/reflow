@@ -11,7 +11,7 @@ use std::str::from_utf8;
 use bytes::Bytes;
 use failure::Error;
 use treebitmap::IpLookupTable;
-use super::util::find_confs;
+use super::util::find_addr_map_files;
 use std::path;
 use std::net::IpAddr;
 
@@ -21,7 +21,8 @@ pub struct IpMatcher {
 
 impl IpMatcher {
     pub fn new(confpath: &path::Path) -> Result<IpMatcher, Error> {
-        let regions = find_confs(confpath, "ipregion")?;
+        let regions = find_addr_map_files(confpath)?;
+        println!("{:#?}", regions);
         Ok(IpMatcher{
             ip4_table: build_ip4_table(&regions)?,
         })

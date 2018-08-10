@@ -12,15 +12,17 @@ use bytes::Bytes;
 mod text;
 
 use self::text::get_reflow;
-use relay::forwarding::routing::TcpTrafficInfo;
+use relay::route::TcpTrafficInfo;
 use std::net::IpAddr;
 use std::net::SocketAddr;
+pub use self::text::var_name;
+pub use self::text::read_branch;
 
 #[allow(dead_code)]
 pub fn load_reflow_rules(p: &Path, gw: &BTreeMap<Bytes, Gateway>)-> Result<RoutingBranch, FailureError> {
     let bs = fs::read(p)?;
     let (_, mut r) = get_reflow(&bs)
-        .map_err(|_| format_err!("error parsing tcp.reflow"))?;
+        .map_err(|e| format_err!("error parsing tcp.reflow: {:?}", e))?;
     r.insert_gateways(gw)?;
     Ok(r)
 }

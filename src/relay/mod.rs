@@ -3,10 +3,11 @@ use std::sync::Arc;
 
 pub mod listen;
 mod inspect;
+pub mod route;
 pub mod forwarding;
 pub mod conf;
 
-pub use self::forwarding::TcpRouter;
+pub use self::route::TcpRouter;
 use self::listen::listen_socks;
 pub use self::conf::AppConf;
 use std::path::Path;

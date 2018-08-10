@@ -7,7 +7,7 @@ use std::fs::DirEntry;
 use std::io;
 use bytes::Bytes;
 
-use super::util::find_confs;
+use super::util::find_domain_map_files;
 use self::radix_trie::Trie;
 use std::path;
 
@@ -18,7 +18,7 @@ pub struct DomainMatcher {
 
 impl <'a> DomainMatcher {
     pub fn new(config: &path::Path) -> io::Result<DomainMatcher> {
-        let regions = find_confs(config, "region")?;
+        let regions = find_domain_map_files(config)?;
         let ruler = DomainMatcher {
             domain_trie: build_domain_trie(&regions)?,
         };

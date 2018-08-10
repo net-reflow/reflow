@@ -27,9 +27,10 @@ extern crate toml;
 extern crate serde_derive;
 extern crate serde;
 extern crate env_logger;
+extern crate core;
 
-use std::error::Error;
 use std::sync::Arc;
+use failure::Error;
 use futures::future;
 use futures::Future;
 use structopt::StructOpt;
@@ -47,12 +48,15 @@ use resolver::config::DnsProxyConf;
 use relay::run_with_conf;
 use relay::AppConf;
 
-pub fn run()-> Result<(), Box<Error>> {
+pub fn run()-> Result<(), Error> {
     env_logger::Builder::from_default_env()
         .default_format_timestamp(false)
         .init();
     let opt = cmd_options::Opt::from_args();
     let config_path = &opt.config;
+    if !config_path.is_dir() {
+        return Err(format_err!("The given configuration directory doesn't exist"));
+    }
     let conf1 = config_path.clone();
     let pool = CpuPool::new_num_cpus();
 
