@@ -1,6 +1,7 @@
 use std::str;
 use std::fmt;
 use nom::{space0, space1, multispace0};
+use std::collections::BTreeMap;
 use std::net::{SocketAddr, IpAddr};
 use super::super::decision_tree::var_name;
 use bytes::Bytes;
@@ -11,14 +12,14 @@ use super::super::decision_tree::{read_branch, RoutingBranch};
 use super::{NameServer, NameServerRemote, RefVal, Relay, RelayProto, DnsProxy, Rule};
 use std::fmt::Formatter;
 
-enum Item {
+pub enum Item {
     Egress(Egress),
     Relay(Relay),
     Dns(DnsProxy),
     Rule(Rule),
 }
 
-named!(conf_items<&[u8], Vec<Item>>,
+named!(pub conf_items<&[u8], Vec<Item>>,
     preceded!(
       opt_line_sep,
       separated_list_complete!(line_sep, conf_item)
@@ -136,7 +137,7 @@ named!(relay_conf<&[u8], Relay >,
 named!(dns_conf<&[u8], DnsProxy >,
     do_parse!(
         char!('{') >> opt_line_sep >>
-        conf: permutation!(
+        conf: map_res!( permutation!(
             do_parse!(
                 tag!("listen") >>
                 equals >>
@@ -150,17 +151,14 @@ named!(dns_conf<&[u8], DnsProxy >,
                 tag!("forward") >> equals >> char!('{') >> opt_line_sep >>
                 m: do_parse!(
                      entries: separated_nonempty_list!(line_sep, read_map_entry) >>
-                    ( entries.into_iter().collect() )
+                    ( entries )
                 ) >>
                 opt_line_sep >> char!('}') >> line_sep >>
                 ( m )
             )
-        ) >>
+        ), |(l, f)| DnsProxy::new1(l, f) ) >>
         char!('}') >>
-        ( DnsProxy {
-             listen: conf.0,
-             forward: conf.1,
-        } )
+        ( conf )
     )
 );
 

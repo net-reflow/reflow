@@ -9,11 +9,11 @@ use tokio;
 use std::sync::Arc;
 
 use conf::DomainMatcher;
-use resolver::config::DnsProxyConf;
 use resolver::handler;
+use conf::DnsProxy;
 
-pub fn serve(router: Arc<DomainMatcher>, conf: DnsProxyConf, pool: CpuPool) -> Result<(), Error> {
-    let handler = handler::SmartResolver::new(router, &conf, pool)?;
+pub fn serve(conf: DnsProxy, matcher: Arc<DomainMatcher>, pool: CpuPool) -> Result<(), Error> {
+    let handler = handler::SmartResolver::new(matcher, &conf, pool)?;
     let addr = conf.listen;
     let listen = UdpListener::bind(&addr)?;
     let f = listen

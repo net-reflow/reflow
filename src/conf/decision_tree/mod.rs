@@ -5,6 +5,7 @@ use std::fmt;
 use std::fmt::{Formatter};
 use std::path::Path;
 use std::fs;
+use std::mem;
 use failure::Error as FailureError;
 use failure::Error;
 use bytes::Bytes;
@@ -17,9 +18,12 @@ use std::net::IpAddr;
 use std::net::SocketAddr;
 pub use self::text::var_name;
 pub use self::text::read_branch;
+use conf::EgressAddr;
+use conf::Egress;
+use super::main::RefVal;
 
 #[allow(dead_code)]
-pub fn load_reflow_rules(p: &Path, gw: &BTreeMap<Bytes, Gateway>)-> Result<RoutingBranch, FailureError> {
+pub fn load_reflow_rules(p: &Path, gw: &BTreeMap<Bytes, Egress>) -> Result<RoutingBranch, FailureError> {
     let bs = fs::read(p)?;
     let (_, mut r) = get_reflow(&bs)
         .map_err(|e| format_err!("error parsing tcp.reflow: {:?}", e))?;
@@ -58,7 +62,7 @@ impl RoutingBranch {
         RoutingBranch::Final(x)
     }
 
-    pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Gateway>)-> Result<(), Error> {
+    pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Egress>) -> Result<(), Error> {
         use self::RoutingBranch::*;
         match self {
             Final(ref mut d) =>{
@@ -96,7 +100,7 @@ impl RoutingCondition {
         }
     }
 
-    fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Gateway>) -> Result<(), Error> {
+    fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Egress>) -> Result<(), Error> {
         use self::RoutingCondition::*;
         let m = match self {
             Port(_, ref mut b) => {
@@ -124,39 +128,28 @@ pub struct RoutingDecision {
 pub enum RoutingAction {
     Direct,
     Reset,
-    Named(NamedGateway),
+    Named(RefVal<Egress>),
 }
 
 impl RoutingAction {
     fn new_named(x: Bytes) -> RoutingAction {
-        let g = NamedGateway { name: x, gateway: None};
+        let g = RefVal::Ref(x);
         RoutingAction::Named(g)
     }
 
-    pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Gateway>)-> Result<(), Error> {
+    pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Egress>) -> Result<(), Error> {
         match self {
-            RoutingAction::Named(n) => {
-                let g = gw.get(&n.name)
-                    .ok_or_else(|| format_err!("Unknown gateway {:?}", n.name))?;
-                n.gateway = Some(*g);
+            RoutingAction::Named(e) => {
+                if let Some(n) = e.get_ref() {
+                    let g = gw.get(&n)
+                        .ok_or_else(|| format_err!("Unknown gateway {:?}", n))?;
+                    mem::replace(e, RefVal::Val(g.clone()));
+                }
             }
             _ => {}
         }
         Ok(())
     }
-}
-
-#[derive(Clone)]
-pub struct NamedGateway {
-    name: Bytes,
-    pub gateway: Option<Gateway>,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum Gateway {
-    Socks5(SocketAddr),
-    /// Bind to an address before connecting
-    From(IpAddr),
 }
 
 #[derive(Clone)]
@@ -218,7 +211,7 @@ impl fmt::Display for RoutingAction {
         match self {
             Direct => write!(f, "do direct"),
             Reset  => write!(f, "do reset"),
-            Named(s) => write!(f, "use {:?}", s.name),
+            Named(s) => write!(f, "use {:?}", s),
         }
     }
 }

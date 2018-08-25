@@ -15,18 +15,15 @@ use tokio_io::io as tio;
 
 use super::TIMEOUT;
 
-mod fail_count;
-
-use self::fail_count::FailureCounter;
 use super::super::dnsclient::flat_result_future;
 use futures::future::Either;
+use conf::NameServerRemote;
 
 /// Do dns queries through a socks5 proxy
 pub struct SockGetterAsync {
     pool: CpuPool,
     proxy: SocketAddr,
-    addr: SocketAddr,
-    watcher: Arc<FailureCounter>,
+    addr: NameServerRemote,
 }
 
 impl fmt::Debug for SockGetterAsync {
@@ -37,35 +34,23 @@ impl fmt::Debug for SockGetterAsync {
 
 
 impl SockGetterAsync {
-    pub fn new(pool: CpuPool, proxy: SocketAddr, remote: SocketAddr)-> SockGetterAsync {
+    pub fn new(pool: CpuPool, proxy: SocketAddr, remote: NameServerRemote)-> SockGetterAsync {
         let sga = SockGetterAsync {
             pool: pool,
             proxy: proxy,
             addr: remote,
-            watcher: Arc::new(FailureCounter::new()),
         };
         sga
     }
 
     pub fn get(&self, message: Vec<u8>) -> impl Future<Item=Vec<u8>, Error=io::Error> + Send {
-        if self.watcher.should_wait() {
-            debug!("{:?} using tcp", self);
-            return Either::A(flat_result_future(self.get_tcp(message)));
-        } else {
-            let f = flat_result_future(self.get_udp(message));
-            let watch = self.watcher.clone();
-            let f =
-                f.then(move |x| match x {
-                    Ok(v) => {
-                        watch.log_success();
-                        Ok(v)
-                    }
-                    Err(e) => {
-                        watch.log_failure();
-                        Err(e)
-                    }
-                });
-            Either::B(f)
+        match self.addr {
+            NameServerRemote::Tcp(a) => {
+                Either::A(flat_result_future(self.get_tcp(message)))
+            }
+            NameServerRemote::Udp(a) => {
+                Either::B(flat_result_future(self.get_udp(message)))
+            }
         }
     }
 
@@ -73,7 +58,7 @@ impl SockGetterAsync {
                    -> io::Result<impl Future<Item=Vec<u8>, Error=io::Error> + Send> {
         let socks5 = Socks5Datagram::bind(self.proxy, "0.0.0.0:0")?;
         socks5.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-        let addr = self.addr.clone();
+        let addr = self.addr.sock_addr();
         let sendf = self.pool.spawn_fn(move || -> io::Result<Socks5Datagram> {
             let _n_b = socks5.send_to(&data, addr)?;
             Ok(socks5)
@@ -94,7 +79,7 @@ impl SockGetterAsync {
     pub fn get_tcp(&self, data: Vec<u8>)
                    -> io::Result<impl Future<Item=Vec<u8>, Error=io::Error> + Send> {
         let proxy = self.proxy.clone();
-        let target = self.addr.clone();
+        let target = self.addr.sock_addr();
         let connectf = self.pool.spawn_fn(move || -> io::Result<Socks5Stream> {
             let ss = Socks5Stream::connect(proxy, target)?;
             ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;

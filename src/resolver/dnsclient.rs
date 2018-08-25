@@ -7,8 +7,7 @@ use super::client::socks::SockGetterAsync;
 use super::client::udp::udp_get;
 use futures_cpupool::CpuPool;
 use std::io;
-use super::config::DnsUpstream;
-use conf::Gateway;
+use conf::EgressAddr;
 use std::net::IpAddr;
 use std::net::UdpSocket as StdUdpSocket;
 use tokio::net::UdpSocket;
@@ -17,6 +16,8 @@ use resolver::client::TIMEOUT;
 use tokio::reactor::Handle;
 use futures::future::Either;
 use util::Either3;
+use conf::Egress;
+use conf::NameServer;
 
 #[derive(Debug)]
 pub enum DnsClient {
@@ -26,22 +27,22 @@ pub enum DnsClient {
 }
 
 impl DnsClient {
-    pub fn new(up: &DnsUpstream<Gateway>, pool: &CpuPool)
+    pub fn new(up: &NameServer, pool: &CpuPool)
                -> DnsClient{
-        match up.gateway {
-            Some(ref a) => {
-                match a {
-                    Gateway::Socks5(s) => {
-                        DnsClient::ViaSocks5(
-                            SockGetterAsync::new(pool.clone(), *s, up.addr)
-                        )
-                    }
-                    Gateway::From(i) => {
-                        DnsClient::DirectBind(up.addr, *i)
-                    }
+        if let Some(ref e) = up.egress {
+            let e = e.val();
+            match e.addr() {
+                EgressAddr::Socks5(s) => {
+                    DnsClient::ViaSocks5(
+                        SockGetterAsync::new(pool.clone(), s, up.remote.clone())
+                    )
+                }
+                EgressAddr::From(i) => {
+                    DnsClient::DirectBind(up.remote.sock_addr(), i)
                 }
             }
-            None => DnsClient::Direct(up.addr)
+        } else {
+            DnsClient::Direct(up.remote.sock_addr())
         }
     }
 
@@ -52,6 +53,7 @@ impl DnsClient {
                 let f = s.get(data);
                 Either3::A(f)
             }
+            // FIXME these always use udp even when tcp is configured
             DnsClient::Direct(s) => {
                 let f = udp_get(s, data);
                 Either3::B(flat_result_future(f))

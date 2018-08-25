@@ -6,13 +6,14 @@ use failure::Error;
 use std::fs;
 use toml;
 use bytes::Bytes;
-use resolver::config::DnsUpstream;
-use conf::Gateway;
+use conf::EgressAddr;
+use conf::Egress;
+use trust_dns_resolver::name_server_pool::NameServer;
+use conf::DnsProxy;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConf {
     pub relay: RelayConf,
-    pub dns: DnsConf,
     gateway: BTreeMap<String, GatewayConf>,
 }
 
@@ -26,14 +27,6 @@ pub struct RelayConf {
 }
 
 #[derive(Clone, Deserialize, Debug)]
-pub struct DnsConf {
-    /// start a smart dns server
-    pub listen: SocketAddr,
-    pub server: BTreeMap<String, DnsUpstream<String>>,
-    pub rule: BTreeMap<String, String>,
-}
-
-#[derive(Clone, Deserialize, Debug)]
 struct GatewayConf {
     kind: String,
     host: Option<IpAddr>,
@@ -42,10 +35,10 @@ struct GatewayConf {
 }
 
 impl GatewayConf {
-    fn parse(&self)->Gateway {
+    fn parse(&self)-> EgressAddr {
         match self.kind.as_ref() {
-            "socks5" => Gateway::Socks5(SocketAddr::from((self.host.unwrap(), self.port.unwrap()))),
-            "bind" => Gateway::From(self.ip.unwrap()),
+            "socks5" => EgressAddr::Socks5(SocketAddr::from((self.host.unwrap(), self.port.unwrap()))),
+            "bind" => EgressAddr::From(self.ip.unwrap()),
             x => panic!("Unknown gateway type {}", x),
         }
     }
@@ -60,12 +53,13 @@ impl AppConf {
         Ok(conf)
     }
 
-    pub fn get_gateways(&self)-> BTreeMap<Bytes, Gateway> {
+    pub fn get_gateways(&self)-> BTreeMap<Bytes, Egress> {
         self.gateway.iter()
-            .map(|(k,v)| -> (Bytes, Gateway) {
+            .map(|(k,v)| -> (Bytes, Egress) {
                 let k:&str = k.as_ref();
                 let g = v.parse();
-                (k.into(), g)
+                let e = Egress {name: k.into(), addr: g};
+                (k.into(), e)
             }).collect()
     }
 }

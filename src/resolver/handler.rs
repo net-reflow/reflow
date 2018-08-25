@@ -9,11 +9,11 @@ use trust_dns::op::Message;
 use trust_dns::rr::LowerName;
 
 use super::dnsclient::DnsClient;
-use super::config::DnsProxyConf;
 use conf::DomainMatcher;
 use trust_dns::serialize::binary::BinDecoder;
 use trust_dns::serialize::binary::BinDecodable;
 use futures_cpupool::CpuPool;
+use conf::DnsProxy;
 
 type SF<V, E> = Future<Item=V, Error=E> + Send;
 
@@ -24,9 +24,9 @@ pub struct SmartResolver {
 }
 
 impl SmartResolver {
-    pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxyConf, pool: CpuPool)
-        -> Result<SmartResolver, Error> {
-        let rresolvers: Vec<(Bytes, DnsClient)> = regionconf.resolv
+    pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxy, pool: CpuPool)
+               -> Result<SmartResolver, Error> {
+        let rresolvers: Vec<(Bytes, DnsClient)> = regionconf.forward
             .iter().map(|(r, s)| {
             let dc = DnsClient::new(s, &pool);
             (r.clone(), dc)

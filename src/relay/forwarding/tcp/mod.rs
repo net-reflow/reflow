@@ -24,7 +24,7 @@ use util::Either3;
 use std::net::IpAddr;
 use std::net;
 use conf::RoutingAction;
-use conf::Gateway;
+use conf::EgressAddr;
 use relay::inspect::ParseFirstPacket;
 use relay::inspect::TcpProtocol;
 
@@ -74,8 +74,8 @@ fn carry_out(
             tokio::net::TcpStream::connect(&a)
                 .map_err(move|e| format_err!("Error making direct {:?} connection to {:?}: {}", p1, a, e))
         ),
-        RoutingAction::Named(ref g) => match g.gateway.unwrap() {
-            Gateway::From(ip) => Either3::B(
+        RoutingAction::Named(ref g) => match g.val().addr() {
+            EgressAddr::From(ip) => Either3::B(
                 bind_tcp_socket(ip)
                     .into_future()
                     .and_then(move |x| {
@@ -83,7 +83,7 @@ fn carry_out(
                     })
                     .map_err(move|e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", p1, a, ip, e))
             ),
-            Gateway::Socks5(x)=> Either3::C(
+            EgressAddr::Socks5(x)=> Either3::C(
                 p.spawn_fn(move || -> io::Result<Socks5Stream> {
                     let ss = Socks5Stream::connect(x, a)?;
                     ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
