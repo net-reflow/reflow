@@ -10,21 +10,28 @@ pub mod conf;
 pub use self::route::TcpRouter;
 use self::listen::listen_socks;
 pub use self::conf::AppConf;
-use std::path::Path;
 use resolver::create_resolver;
-use conf::load_reflow_rules;
 use conf::{DomainMatcher,IpMatcher};
 use futures_cpupool::CpuPool;
+use conf::Relay;
+use conf::RelayProto;
 
-pub fn run_with_conf<'a>(conf: &AppConf,
-                         path: &'a Path,
-                         d: Arc<DomainMatcher>,
-                         i: Arc<IpMatcher>,
-                         p: CpuPool,
+/// Start a relay
+pub fn run_with_conf(conf: Relay,
+                     d: Arc<DomainMatcher>,
+                     i: Arc<IpMatcher>,
+                     p: CpuPool,
 ) -> Result<(), Error> {
-    let resolver = Arc::new(create_resolver(conf.relay.resolver));
-    let tcp_rules = load_reflow_rules(&path.join("tcp.reflow"), &conf.get_gateways())?;
-    let router = TcpRouter::new(d, i, tcp_rules);
-    listen_socks(&conf.relay.listen_socks, resolver, Arc::new(router), p)?;
+    let rule = conf.rule.val().clone();
+    // FIXME support proxy
+    let resolver = Arc::new(create_resolver(
+        conf.nameserver_or_default().remote.sock_addr())
+    );
+    let router = TcpRouter::new(d, i, rule);
+    match conf.listen {
+        RelayProto::Socks5(a) => {
+            listen_socks(&a, resolver, Arc::new(router), p)?;
+        }
+    }
     Ok(())
 }

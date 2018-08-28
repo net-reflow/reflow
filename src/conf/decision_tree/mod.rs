@@ -14,11 +14,8 @@ mod text;
 
 use self::text::get_reflow;
 use relay::route::TcpTrafficInfo;
-use std::net::IpAddr;
-use std::net::SocketAddr;
 pub use self::text::var_name;
 pub use self::text::read_branch;
-use conf::EgressAddr;
 use conf::Egress;
 use super::main::RefVal;
 
@@ -31,6 +28,7 @@ pub fn load_reflow_rules(p: &Path, gw: &BTreeMap<Bytes, Egress>) -> Result<Routi
     Ok(r)
 }
 
+#[derive(Clone)]
 pub enum RoutingBranch {
     /// try them one by one, return the first match, if there is one
     /// otherwise there is no result
@@ -79,6 +77,7 @@ impl RoutingBranch {
     }
 }
 
+#[derive(Clone)]
 pub enum RoutingCondition {
     Domain(BTreeMap<Bytes, RoutingBranch>),
     IpAddr(BTreeMap<Bytes, RoutingBranch>),

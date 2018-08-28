@@ -29,7 +29,6 @@ extern crate serde;
 extern crate env_logger;
 extern crate core;
 
-use std::sync::Arc;
 use failure::Error;
 use futures::future;
 use futures::Future;
@@ -45,7 +44,6 @@ mod cmd_options;
 pub mod util;
 
 use relay::run_with_conf;
-use relay::AppConf;
 use conf::load_conf;
 
 pub fn run()-> Result<(), Error> {
@@ -57,19 +55,21 @@ pub fn run()-> Result<(), Error> {
     if !config_path.is_dir() {
         return Err(format_err!("The given configuration directory doesn't exist"));
     }
-    let conf1 = config_path.clone();
     let pool = CpuPool::new_num_cpus();
 
-    let ip_matcher = Arc::new(conf::IpMatcher::new(config_path)?);
-    let d = Arc::new(conf::DomainMatcher::new(config_path)?);
-
-    let rc = AppConf::new(&config_path)?;
     let conf = load_conf(&config_path)?;
     let mut rt = Runtime::new()?;
     rt.spawn( future::lazy(move || {
-        if let Err(e) = run_with_conf(&rc, &conf1, d.clone(), ip_matcher, pool.clone()) {
-            error!("Relay error: {:?}", e);
+        for r in conf.relays {
+            info!("Starting {:?}", r);
+            if let Err(e) = run_with_conf(r,
+                                          conf.domain_matcher.clone(),
+                                          conf.ip_matcher.clone(),
+                                          pool.clone()) {
+                error!("Relay error: {:?}", e);
+            }
         }
+
         if let Some(dns) = conf.dns {
             info!("Starting dns proxy");
             let ds = resolver::serve(dns, conf.domain_matcher.clone(), pool);

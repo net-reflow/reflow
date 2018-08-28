@@ -6,7 +6,7 @@ use failure::Error;
 use super::Egress;
 use bytes::Bytes;
 use std::fmt::Debug;
-use super::decision_tree::{read_branch, RoutingBranch};
+use super::decision_tree::{RoutingBranch};
 use core::fmt;
 use std::path::Path;
 use std::fs;
@@ -20,11 +20,13 @@ use std::mem;
 
 pub struct MainConf {
     pub dns: Option<DnsProxy>,
+    pub relays: Vec<Relay>,
     pub domain_matcher: Arc<conf::DomainMatcher>,
+    pub ip_matcher: Arc<conf::IpMatcher>,
 }
 
 pub fn load_conf(p: &Path)-> Result<MainConf, Error> {
-    let f = fs::read(p)?;
+    let f = fs::read(&p.join("config"))?;
     let (_, is) = conf_items(&f)
         .map_err(|e| format_err!("error parsing config: {:?}", e))?;
     let mut rules = BTreeMap::new();
@@ -47,11 +49,13 @@ pub fn load_conf(p: &Path)-> Result<MainConf, Error> {
     let d = Arc::new(conf::DomainMatcher::new(p)?);
     Ok(MainConf {
         dns: dns,
+        relays: relays,
         domain_matcher: d,
+        ip_matcher: ip_matcher,
     })
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct NameServer {
     pub egress: Option<RefVal<Egress>>,
     pub remote: NameServerRemote,
@@ -69,14 +73,20 @@ impl NameServerRemote {
         }
     }
 }
-#[derive(Debug)]
-struct Relay {
+
+pub struct Relay {
     resolver: Option<NameServer>,
-    listen: RelayProto,
-    rule: Bytes,
+    pub listen: RelayProto,
+    pub rule: RefVal<RoutingBranch>,
+}
+impl fmt::Debug for Relay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Relay on {:?}", self.listen)?;
+        Ok(())
+    }
 }
 #[derive(Debug)]
-enum RelayProto {
+pub enum RelayProto {
     Socks5(SocketAddr),
 }
 #[derive(Debug)]
@@ -86,7 +96,7 @@ pub struct DnsProxy {
     pub default: NameServer,
 }
 
-struct Rule {
+pub struct Rule {
     name: Bytes,
     branch: RoutingBranch,
 }
@@ -106,21 +116,37 @@ impl<T: Clone> RefVal<T> {
     fn insert_value(&mut self, valmap: &BTreeMap<Bytes, T>)->Result<(), Error> {
         if let Some(n) = self.get_ref() {
             let g = valmap.get(&n)
-                .ok_or_else(|| format_err!("Unknown key {:?}", n))?;
+                .ok_or_else(|| format_err!("Variable {:?} is not defined", n))?;
             mem::replace(self, RefVal::Val(g.clone()));
         }
         Ok(())
     }
 }
-impl<T: Debug> RefVal<T> {
+impl<T> RefVal<T> {
     pub fn val(&self)->&T {
         match self {
             RefVal::Val(v) => &v,
-            _ => panic!("{:?} is not value", self),
+            RefVal::Ref(n) => panic!("{:?} is not value", n),
         }
     }
 }
 
+impl Relay {
+    pub fn nameserver_or_default(&self)-> NameServer {
+        match self.resolver {
+            Some(ref r) => r.clone(),
+            None => {
+                NameServer {
+                    egress: None,
+                    remote: NameServerRemote::Udp(
+                        SocketAddr::new(
+                            IpAddr::from([8,8,8,8]),
+                            53)),
+                }
+            }
+        }
+    }
+}
 impl DnsProxy {
     fn new1(listen: SocketAddr, ms: Vec<(Bytes,NameServer)>)->Result<DnsProxy, Error> {
         let mut forward: BTreeMap<Bytes, NameServer> = ms.into_iter().collect();
@@ -139,7 +165,7 @@ impl DnsProxy {
                    -> Result<DnsProxy, Error> {
         let f = self.forward.into_iter().map(|(k, mut v)| {
             if let Some(ref mut e) = v.egress {
-                e.insert_value(gw);
+                e.insert_value(gw).unwrap();
             }
             (k, v)
         }).collect();

@@ -1,7 +1,6 @@
 use std::io;
 use std::fmt;
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use byteorder::{BigEndian,WriteBytesExt,ReadBytesExt};
 use futures::{Future};
@@ -45,10 +44,10 @@ impl SockGetterAsync {
 
     pub fn get(&self, message: Vec<u8>) -> impl Future<Item=Vec<u8>, Error=io::Error> + Send {
         match self.addr {
-            NameServerRemote::Tcp(a) => {
+            NameServerRemote::Tcp(_a) => {
                 Either::A(flat_result_future(self.get_tcp(message)))
             }
-            NameServerRemote::Udp(a) => {
+            NameServerRemote::Udp(_a) => {
                 Either::B(flat_result_future(self.get_udp(message)))
             }
         }

@@ -16,7 +16,6 @@ use resolver::client::TIMEOUT;
 use tokio::reactor::Handle;
 use futures::future::Either;
 use util::Either3;
-use conf::Egress;
 use conf::NameServer;
 
 #[derive(Debug)]

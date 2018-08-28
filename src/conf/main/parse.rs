@@ -1,14 +1,13 @@
 use std::str;
 use std::fmt;
-use nom::{space0, space1, multispace0};
-use std::collections::BTreeMap;
+use nom::{space0, space1};
 use std::net::{SocketAddr, IpAddr};
 use super::super::decision_tree::var_name;
 use bytes::Bytes;
 use super::Egress;
 use super::super::EgressAddr;
 use super::super::util::{line_sep, opt_line_sep};
-use super::super::decision_tree::{read_branch, RoutingBranch};
+use super::super::decision_tree::{read_branch};
 use super::{NameServer, NameServerRemote, RefVal, Relay, RelayProto, DnsProxy, Rule};
 use std::fmt::Formatter;
 
@@ -129,7 +128,7 @@ named!(relay_conf<&[u8], Relay >,
         ( Relay {
              resolver: conf.0,
              listen: conf.1,
-             rule: conf.2.into(),
+             rule: RefVal::Ref(conf.2.into()),
         } )
     )
 );
@@ -191,7 +190,6 @@ named!(socket_addr<&[u8], SocketAddr>,
 
 #[cfg(test)]
 mod tests {
-    use std::path;
     use std::fs;
     use super::conf_items;
     use bytes::Bytes;

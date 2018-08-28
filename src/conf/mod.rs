@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use std::net::IpAddr;
 use bytes::Bytes;
 pub use self::main::{DnsProxy, NameServer, NameServerRemote};
-pub use self::main::load_conf;
+pub use self::main::{load_conf, MainConf, Relay, RelayProto};
 
 #[derive(Debug, Clone)]
 pub struct Egress {

@@ -3,7 +3,6 @@
 mod handler;
 pub mod client;
 mod dnsclient;
-pub mod config;
 mod serve;
 mod lookup;
 
