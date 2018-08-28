@@ -5,11 +5,9 @@ pub mod listen;
 mod inspect;
 pub mod route;
 pub mod forwarding;
-pub mod conf;
 
 pub use self::route::TcpRouter;
 use self::listen::listen_socks;
-pub use self::conf::AppConf;
 use resolver::create_resolver;
 use conf::{DomainMatcher,IpMatcher};
 use futures_cpupool::CpuPool;

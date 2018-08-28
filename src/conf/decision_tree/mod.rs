@@ -3,30 +3,17 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::{Formatter};
-use std::path::Path;
-use std::fs;
 use std::mem;
-use failure::Error as FailureError;
 use failure::Error;
 use bytes::Bytes;
 
 mod text;
 
-use self::text::get_reflow;
 use relay::route::TcpTrafficInfo;
 pub use self::text::var_name;
 pub use self::text::read_branch;
 use conf::Egress;
-use super::main::RefVal;
-
-#[allow(dead_code)]
-pub fn load_reflow_rules(p: &Path, gw: &BTreeMap<Bytes, Egress>) -> Result<RoutingBranch, FailureError> {
-    let bs = fs::read(p)?;
-    let (_, mut r) = get_reflow(&bs)
-        .map_err(|e| format_err!("error parsing tcp.reflow: {:?}", e))?;
-    r.insert_gateways(gw)?;
-    Ok(r)
-}
+use conf::main::RefVal;
 
 #[derive(Clone)]
 pub enum RoutingBranch {

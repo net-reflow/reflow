@@ -22,10 +22,6 @@ extern crate tokio_io;
 extern crate treebitmap;
 extern crate trust_dns;
 extern crate trust_dns_resolver;
-extern crate toml;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
 extern crate env_logger;
 extern crate core;
 
