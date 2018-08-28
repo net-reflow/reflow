@@ -25,7 +25,6 @@ extern crate trust_dns_resolver;
 extern crate env_logger;
 extern crate core;
 
-use failure::Error;
 use futures::future;
 use futures::Future;
 use structopt::StructOpt;
@@ -42,19 +41,26 @@ pub mod util;
 use relay::run_with_conf;
 use conf::load_conf;
 
-pub fn run()-> Result<(), Error> {
+pub fn run()-> Result<(), i32> {
     env_logger::Builder::from_default_env()
         .default_format_timestamp(false)
         .init();
     let opt = cmd_options::Opt::from_args();
     let config_path = &opt.config;
     if !config_path.is_dir() {
-        return Err(format_err!("The given configuration directory doesn't exist"));
+        error!("The given configuration directory doesn't exist");
+        return Err(99);
     }
     let pool = CpuPool::new_num_cpus();
 
-    let conf = load_conf(&config_path)?;
-    let mut rt = Runtime::new()?;
+    let conf = match load_conf(&config_path) {
+        Ok(x) => x,
+        Err(e) => {
+            error!("Error in config: {}", e);
+            return Err(100);
+        }
+    };
+    let mut rt = Runtime::new().expect("Tokio Runtime failed to run");
     rt.spawn( future::lazy(move || {
         for r in conf.relays {
             info!("Starting {:?}", r);

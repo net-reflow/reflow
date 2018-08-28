@@ -19,9 +19,10 @@ pub enum Item {
 }
 
 named!(pub conf_items<&[u8], Vec<Item>>,
-    preceded!(
-      opt_line_sep,
-      separated_list_complete!(line_sep, conf_item)
+    do_parse!(
+      opt_line_sep >>
+      items: separated_list_complete!(line_sep, conf_item) >>
+      ( items )
    )
 );
 named!(conf_item<&[u8], Item>,
@@ -215,6 +216,17 @@ impl fmt::Debug for Item {
             Item::Relay(x) => write!(f, "Item {:?}", x),
             Item::Dns(x) => write!(f, "Item {:?}", x),
             Item::Rule(x) => write!(f, "Item {:?}", x),
+        }
+    }
+}
+
+impl fmt::Display for Item {
+    fn fmt(&self, f: & mut Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Item::Egress(e) => write!(f, "{}", e),
+            Item::Relay(x) => write!(f, "{:?}", x),
+            Item::Dns(x) => write!(f, "{}", x),
+            Item::Rule(x) => write!(f, "{}", x),
         }
     }
 }

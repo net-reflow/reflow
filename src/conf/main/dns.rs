@@ -4,6 +4,8 @@ use conf::main::util::RefVal;
 use bytes::Bytes;
 use failure::Error;
 use std::collections::BTreeMap;
+use std::fmt;
+use util::BsDisp;
 
 #[derive(Debug)]
 pub struct DnsProxy {
@@ -22,15 +24,6 @@ pub enum NameServerRemote{
     Udp(SocketAddr),
     Tcp(SocketAddr),
 }
-impl NameServerRemote {
-    pub fn sock_addr(&self) -> SocketAddr {
-        match self {
-            NameServerRemote::Udp(a) => *a,
-            NameServerRemote::Tcp(a) => *a,
-        }
-    }
-}
-
 
 impl DnsProxy {
     pub fn new1(listen: SocketAddr, ms: Vec<(Bytes,NameServer)>)->Result<DnsProxy, Error> {
@@ -46,22 +39,23 @@ impl DnsProxy {
     }
 
     /// replace named gateways with actual values
-    fn deref_route(mut self, gw: &BTreeMap<Bytes, Egress>)
-                   -> Result<DnsProxy, Error> {
-        let f = self.forward.into_iter().map(|(k, mut v)| {
-            if let Some(ref mut e) = v.egress {
-                e.insert_value(gw).unwrap();
+    pub fn deref_route(&mut self, gw: &BTreeMap<Bytes, Egress>)
+                   -> Result<(), Error> {
+        for (_, ns) in &mut self.forward {
+            if let Some(ref mut e) = ns.egress {
+                e.insert_value(gw).map_err(|e| {
+                    format_err!("Error in dns proxy configuration: \
+                    {} is not a defined egress", BsDisp::new(&e))
+                })?;
             }
-            (k, v)
-        }).collect();
-        if let Some(ref mut e) = self.default.egress {
-            e.insert_value(gw)?;
         }
-        Ok(DnsProxy {
-            listen: self.listen,
-            forward: f,
-            default: self.default,
-        })
+        if let Some(ref mut e) = self.default.egress {
+            e.insert_value(gw).map_err(|e| {
+                format_err!("Error in dns proxy configuration: \
+                    {} is not a defined egress", BsDisp::new(&e))
+            })?;
+        }
+        Ok(())
     }
 }
 impl NameServerRemote {
@@ -71,5 +65,12 @@ impl NameServerRemote {
             "udp" => NameServerRemote::Udp(addr),
             _ => panic!("{} is not known DNS protocol", proto),
         }
+    }
+}
+
+impl fmt::Display for DnsProxy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Dns proxy listening on on {:?}", self.listen)?;
+        Ok(())
     }
 }

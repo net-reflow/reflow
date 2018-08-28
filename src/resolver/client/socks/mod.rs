@@ -57,7 +57,7 @@ impl SockGetterAsync {
                    -> io::Result<impl Future<Item=Vec<u8>, Error=io::Error> + Send> {
         let socks5 = Socks5Datagram::bind(self.proxy, "0.0.0.0:0")?;
         socks5.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-        let addr = self.addr.sock_addr();
+        let addr = ns_sock_addr(&self.addr);
         let sendf = self.pool.spawn_fn(move || -> io::Result<Socks5Datagram> {
             let _n_b = socks5.send_to(&data, addr)?;
             Ok(socks5)
@@ -78,7 +78,7 @@ impl SockGetterAsync {
     pub fn get_tcp(&self, data: Vec<u8>)
                    -> io::Result<impl Future<Item=Vec<u8>, Error=io::Error> + Send> {
         let proxy = self.proxy.clone();
-        let target = self.addr.sock_addr();
+        let target = ns_sock_addr(&self.addr);
         let connectf = self.pool.spawn_fn(move || -> io::Result<Socks5Stream> {
             let ss = Socks5Stream::connect(proxy, target)?;
             ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
@@ -120,5 +120,12 @@ impl SockGetterAsync {
 
         ;
         Ok(rep)
+    }
+}
+
+fn ns_sock_addr(ns: &NameServerRemote) -> SocketAddr {
+    match ns {
+        NameServerRemote::Udp(a) => a.clone(),
+        NameServerRemote::Tcp(a) => a.clone(),
     }
 }

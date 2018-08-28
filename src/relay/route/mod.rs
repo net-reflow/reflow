@@ -6,6 +6,8 @@ use conf::{DomainMatcher, IpMatcher};
 use conf::RoutingBranch;
 use relay::inspect::TcpProtocol;
 use conf::RoutingDecision;
+use std::fmt;
+use util::BsDisp;
 
 #[derive(Debug)]
 pub struct TcpTrafficInfo<'a> {
@@ -57,7 +59,54 @@ impl TcpRouter {
         let ip = self.ip_match.match_ip(addr.ip());
         let i = TcpTrafficInfo { addr, protocol: &protocol, domain_region: domain, ip_region: ip };
         let d = self.rules.decision(&i);
-        info!("route {:?}, tcp traffic {:?}", d, i);
+        info!("{}", RouteAndTraffic::new(&d, i));
         d
+    }
+}
+
+struct RouteAndTraffic<'a> {
+    traffic: TcpTrafficInfo<'a>,
+    route: &'a Option<RoutingDecision>,
+}
+
+impl<'a> RouteAndTraffic<'a> {
+    fn new(d: &'a Option<RoutingDecision>, t: TcpTrafficInfo<'a>)-> RouteAndTraffic<'a> {
+        RouteAndTraffic { route: d, traffic: t}
+    }
+}
+
+impl<'a> fmt::Display for RouteAndTraffic<'a> {
+    fn fmt(&self, f: & mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self.route {
+            Some(r) => write!(f, "Route {:?} ", r)?,
+            None => write!(f, "Missing route! ")?,
+        }
+        write!(f, "{}", self.traffic)?;
+        Ok(())
+    }
+}
+
+impl<'a> fmt::Display for TcpTrafficInfo<'a> {
+    fn fmt(&self, f: & mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{} ", BsDisp::new(self.protocol.name()))?;
+        if let Some(d) = self.protocol.get_domain() {
+            write!(f, "{}", BsDisp::new(&d))?;
+            if let Some(ref r) = self.domain_region {
+                write!(f, "({})", BsDisp::new(&r))?;
+            }
+        }
+        write!(f, " addr={}", self.addr)?;
+        if let Some(ref r) = self.ip_region {
+            write!(f, "({})", BsDisp::new(&r))?;
+        }
+        match self.protocol {
+            TcpProtocol::PlainHttp(h)=> {
+                if let Some(ref u) =h.user_agent {
+                    write!(f, " ua={}", BsDisp::new(&u))?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }

@@ -16,7 +16,7 @@ use proto::socks::TcpRequestHeader;
 type SockReq = (TcpStream, TcpRequestHeader);
 
 pub fn listen(addr: &SocketAddr)
-    ->Result<impl Stream<Item=impl Future<Item=SockReq,Error=Error>, Error=io::Error>, io::Error> {
+    ->Result<impl Stream<Item=impl Future<Item=SockReq,Error=Error>, Error=io::Error>, Error> {
     let l = tokio::net::TcpListener::bind(addr)?;
     let f =
         l.incoming().map_err(|e| e.into())

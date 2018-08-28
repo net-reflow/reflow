@@ -17,7 +17,7 @@ impl fmt::Debug for Relay {
         Ok(())
     }
 }
-#[derive(Debug)]
+
 pub enum RelayProto {
     Socks5(SocketAddr),
 }
@@ -37,5 +37,14 @@ impl Relay {
                 }
             }
         }
+    }
+}
+
+impl fmt::Debug for RelayProto {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            RelayProto::Socks5(a) => write!(f, "socks5 {:?}", a)?,
+        }
+        Ok(())
     }
 }

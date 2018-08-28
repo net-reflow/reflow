@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use failure::Error;
 use std::mem;
 use std::collections::BTreeMap;
 
@@ -16,10 +15,10 @@ impl<T: Clone> RefVal<T> {
             _ => None,
         }
     }
-    pub fn insert_value(&mut self, valmap: &BTreeMap<Bytes, T>)->Result<(), Error> {
+    pub fn insert_value(&mut self, valmap: &BTreeMap<Bytes, T>)->Result<(), Bytes> {
         if let Some(n) = self.get_ref() {
             let g = valmap.get(&n)
-                .ok_or_else(|| format_err!("Variable {:?} is not defined", n))?;
+                .ok_or_else(|| n)?;
             mem::replace(self, RefVal::Val(g.clone()));
         }
         Ok(())

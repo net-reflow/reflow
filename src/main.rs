@@ -5,8 +5,8 @@ use std::process;
 use reflow::run;
 
 fn main() {
+    println!("Starting reflow");
     if let Err(e) = run() {
-        println!("error: {:?}", e);
-        process::exit(1);
+        process::exit(e);
     };
 }

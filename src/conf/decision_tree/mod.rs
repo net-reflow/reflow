@@ -14,6 +14,7 @@ pub use self::text::var_name;
 pub use self::text::read_branch;
 use conf::Egress;
 use conf::main::RefVal;
+use util::BsDisp;
 
 #[derive(Clone)]
 pub enum RoutingBranch {
@@ -195,9 +196,15 @@ impl fmt::Display for RoutingAction {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use self::RoutingAction::*;
         match self {
-            Direct => write!(f, "do direct"),
-            Reset  => write!(f, "do reset"),
-            Named(s) => write!(f, "use {:?}", s),
+            Direct => write!(f, "direct"),
+            Reset  => write!(f, "reset"),
+            Named(s) => {
+                let n = match s {
+                    RefVal::Ref(n) => &n,
+                    RefVal::Val(x) => &x.name,
+                };
+                write!(f, "{}", BsDisp::new(&n))
+            },
         }
     }
 }

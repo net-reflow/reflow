@@ -22,7 +22,6 @@ pub struct IpMatcher {
 impl IpMatcher {
     pub fn new(confpath: &path::Path) -> Result<IpMatcher, Error> {
         let regions = find_addr_map_files(confpath)?;
-        println!("{:#?}", regions);
         Ok(IpMatcher{
             ip4_table: build_ip4_table(&regions)?,
         })

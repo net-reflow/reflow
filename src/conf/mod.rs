@@ -13,6 +13,8 @@ use std::net::IpAddr;
 use bytes::Bytes;
 pub use self::main::{DnsProxy, NameServer, NameServerRemote};
 pub use self::main::{load_conf, MainConf, Relay, RelayProto};
+use std::fmt;
+use util::BsDisp;
 
 #[derive(Debug, Clone)]
 pub struct Egress {
@@ -29,5 +31,13 @@ pub enum EgressAddr {
 impl Egress {
     pub fn addr(&self)->EgressAddr {
         self.addr
+    }
+}
+
+impl fmt::Display for Egress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Egress {}", BsDisp::new(&self.name))?;
+        write!(f, ": {:?}", self.addr)?;
+        Ok(())
     }
 }

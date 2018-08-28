@@ -18,8 +18,8 @@ use relay::TcpRouter;
 use futures_cpupool::CpuPool;
 
 pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>, p: CpuPool)->Result<(), Error >{
-    let fut =
-        listen(addr)?.for_each(move|s| {
+    let l = listen(addr).map_err(|e| format_err!("Fail to listen on socks {:?}: {}", addr, e))?;
+    let fut =l.for_each(move|s| {
             let r1 = resolver.clone();
             let rt1 = router.clone();
             let p = p.clone();

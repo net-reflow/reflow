@@ -22,8 +22,12 @@ pub fn run_with_conf(conf: Relay,
 ) -> Result<(), Error> {
     let rule = conf.rule.val().clone();
     // FIXME support proxy
+    let ns = conf.nameserver_or_default();
+    if !ns.egress.is_none() {
+        error!("Resolver config in relay doesn't support proxy yet");
+    }
     let resolver = Arc::new(create_resolver(
-        conf.nameserver_or_default().remote.sock_addr())
+        ns.remote)
     );
     let router = TcpRouter::new(d, i, rule);
     match conf.listen {

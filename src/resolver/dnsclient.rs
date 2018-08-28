@@ -17,6 +17,7 @@ use tokio::reactor::Handle;
 use futures::future::Either;
 use util::Either3;
 use conf::NameServer;
+use conf::NameServerRemote;
 
 #[derive(Debug)]
 pub enum DnsClient {
@@ -37,11 +38,12 @@ impl DnsClient {
                     )
                 }
                 EgressAddr::From(i) => {
-                    DnsClient::DirectBind(up.remote.sock_addr(), i)
+                    let a = ns_sock_addr(&up.remote);
+                    DnsClient::DirectBind(a, i)
                 }
             }
         } else {
-            DnsClient::Direct(up.remote.sock_addr())
+            DnsClient::Direct(ns_sock_addr(&up.remote))
         }
     }
 
@@ -61,6 +63,18 @@ impl DnsClient {
         }
     }
 }
+
+
+fn ns_sock_addr(ns: &NameServerRemote) -> SocketAddr {
+    match ns {
+        NameServerRemote::Udp(a) => a.clone(),
+        NameServerRemote::Tcp(a) => {
+            warn!("Dns over TCP isn't support yet even though it's configured");
+            a.clone()
+        },
+    }
+}
+
 
 pub fn flat_result_future<E,F,FT,FE>(rf: Result<F,E>)->impl Future<Item=FT, Error=FE>+Send
     where F: Future<Item=FT,Error=FE> + Send + 'static,

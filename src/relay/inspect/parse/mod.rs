@@ -22,7 +22,7 @@ impl TcpProtocol {
             PlainHttp(_) => b"http",
             SSH => b"ssh",
             Tls(_) => b"tls",
-            Unidentified => b"unidentified",
+            Unidentified => b"other",
         }
     }
 
@@ -39,7 +39,7 @@ impl TcpProtocol {
 #[derive(Clone, Debug)]
 pub struct HttpInfo {
     host: Bytes,
-    user_agent: Option<Bytes>,
+    pub user_agent: Option<Bytes>,
 }
 
 impl HttpInfo {

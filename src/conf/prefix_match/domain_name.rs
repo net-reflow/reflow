@@ -6,10 +6,12 @@ use std::fs;
 use std::fs::DirEntry;
 use std::io;
 use bytes::Bytes;
+use failure::Error;
 
 use super::util::find_domain_map_files;
 use self::radix_trie::Trie;
 use std::path;
+use util::BsDisp;
 
 pub struct DomainMatcher {
     domain_trie: Trie<Vec<u8>, Bytes>,
@@ -17,8 +19,9 @@ pub struct DomainMatcher {
 
 
 impl <'a> DomainMatcher {
-    pub fn new(config: &path::Path) -> io::Result<DomainMatcher> {
+    pub fn new(config: &path::Path) -> Result<DomainMatcher, Error> {
         let regions = find_domain_map_files(config)?;
+        check_zone_name(regions.keys().collect())?;
         let ruler = DomainMatcher {
             domain_trie: build_domain_trie(&regions)?,
         };
@@ -106,4 +109,18 @@ mod tests {
             assert_eq!(j, v);
         }
     }
+}
+
+fn check_zone_name(ks: Vec<&Bytes>)->Result<(), Error> {
+    let reserved = vec!["else"];
+    for k in ks {
+        for i in &reserved {
+            if k == i.as_bytes() {
+                return Err(format_err!("{} can't be used the name of a domain name zone",
+                                  BsDisp::new(&k),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
