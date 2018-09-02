@@ -138,6 +138,7 @@ impl fmt::Debug for MainConf {
 fn check_var_name(ns: Vec<&Bytes>)->Result<(), Error> {
     let reserved = vec![
         "bind", "else", "socks5",
+        "direct", "reset",
         "any", "cond",
     ];
     for n in ns {
