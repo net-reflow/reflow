@@ -63,7 +63,7 @@ pub fn run()-> Result<(), i32> {
     let mut rt = Runtime::new().expect("Tokio Runtime failed to run");
     rt.spawn( future::lazy(move || {
         for r in conf.relays {
-            info!("Starting {:?}", r);
+            info!("Starting {}", r);
             if let Err(e) = run_with_conf(r,
                                           conf.domain_matcher.clone(),
                                           conf.ip_matcher.clone(),

@@ -30,8 +30,9 @@ pub struct MainConf {
     pub ip_matcher: Arc<conf::IpMatcher>,
 }
 
-pub fn load_conf(p: &Path)-> Result<MainConf, Error> {
-    let f = fs::read(&p.join("config"))?;
+pub fn load_conf<P: AsRef<Path>>(p: P)-> Result<MainConf, Error> {
+    let p = p.as_ref();
+    let f = fs::read(p.join("config"))?;
     let (remain, is) = conf_items(&f)
         .map_err(|e| format_err!("error parsing config: {:?}", e))?;
     if !all_comments_or_space(remain) {
@@ -53,7 +54,7 @@ pub fn load_conf(p: &Path)-> Result<MainConf, Error> {
                 rules.insert(r.name, r.branch);
             },
             Item::Dns(x) => {
-                info!("Loaded dns proxy configuration: {:?}", x);
+                info!("Loaded dns proxy configuration: {}", x);
                 dns = Some(x);
             },
             Item::Relay(x) => {
@@ -122,6 +123,18 @@ impl fmt::Display for Rule {
     }
 }
 
+impl fmt::Debug for MainConf {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        if let Some(ref x) = self.dns {
+            writeln!(f, "dns proxy {:?}", x)?;
+        }
+        for x in &self.relays {
+            writeln!(f, "{:?}", x)?;
+        }
+        Ok(())
+    }
+}
+
 fn check_var_name(ns: Vec<&Bytes>)->Result<(), Error> {
     let reserved = vec![
         "bind", "else", "socks5",
@@ -137,4 +150,17 @@ fn check_var_name(ns: Vec<&Bytes>)->Result<(), Error> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests{
+    use super::load_conf;
+    #[test]
+    fn test() {
+        let conf = load_conf("config");
+        match conf {
+            Ok(k) =>println!("okay {:?}", k),
+            Err(x) => println!("err {:?}", x),
+        };
+    }
 }

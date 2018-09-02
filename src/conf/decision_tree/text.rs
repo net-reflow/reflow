@@ -10,30 +10,14 @@ use nom::{
     space1,
 };
 use super::{
-    AdditionalAction,
     RoutingAction,
     RoutingBranch,
     RoutingCondition,
-    RoutingDecision
 };
 use super::super::util::{line_sep, opt_line_sep};
 
-named!(pub get_reflow<&[u8], RoutingBranch>,
-    do_parse!(
-        opt_line_sep >>
-        items: separated_nonempty_list_complete!(line_sep, cond_or_deci) >>
-        ( RoutingBranch::Sequential(items) )
-    )
-);
-
-named!(cond_or_deci<&[u8], RoutingBranch>,
-    alt!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
-         map!(read_cond, |c| RoutingBranch::Conditional(c)))
-);
-
 named!(read_cond<&[u8], RoutingCondition>,
     do_parse!(
-        tag!("cond") >> space1 >>
         kind: var_name >>
         space0 >>
         d: switch!(value!(kind),
@@ -94,38 +78,12 @@ space0 >>
 );
 
 named!(pub read_branch<&[u8], RoutingBranch>,
-    alt_complete!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
-         preceded!(tuple!(tag!("any"), space0), delimited!(tag!("["), read_sequential, tag!("]"))) |
-         map!(read_cond, |c| RoutingBranch::Conditional(c))
-        )
-);
-
-/// leaf node of the decision tree
-named!(read_decision<&[u8], RoutingDecision>,
-    do_parse!(
-        route: alt!(
-            switch!(preceded!(pair!(tag!("do"), space1), var_name),
-                        b"direct" => value!(RoutingAction::Direct) |
-                        b"reset" => value!(RoutingAction::Reset)
-                   ) |
-            map!(map!(preceded!(pair!(tag!("use"), space1), var_name),
-                      |bs: &[u8]| bs.into()),
-                 |s| RoutingAction::new_named(s))
-        ) >>
-        acts: many0!(read_additional_action) >>
-        ( RoutingDecision {route, additional: acts } )
-    )
-);
-
-named!(read_additional_action<&[u8], AdditionalAction>,
-    do_parse!(
-        space1 >>
-        tag!("and") >>
-        space1 >>
-        act: alt!(map!(tag!("print_log"), |_| AdditionalAction::PrintLog) |
-                  map!(tag!("save_sample"), |_| AdditionalAction::SaveSample)
-             ) >>
-        ( act )
+    switch!(terminated!(var_name, space0),
+        b"direct" => value!(RoutingBranch::new_final(RoutingAction::Direct)) |
+        b"reset" => value!(RoutingBranch::new_final(RoutingAction::Reset)) |
+        b"any" => delimited!(tag!("["), read_sequential, tag!("]")) |
+        b"cond" => map!(read_cond, |c| RoutingBranch::Conditional(c)) |
+        x => value!(RoutingBranch::new_final(RoutingAction::new_named(x)))
     )
 );
 
@@ -133,9 +91,7 @@ named!(read_sequential<&[u8], RoutingBranch>,
     do_parse!(
         opt_line_sep >>
         items:   separated_nonempty_list!(line_sep,
-                      alt_complete!(map!(read_decision, |deci| RoutingBranch::new_final(deci)) |
-                           map!(read_cond, |c| RoutingBranch::Conditional(c))
-                          )
+                     read_branch
                  ) >>
         opt_line_sep >>
         ( RoutingBranch::Sequential(items) )
@@ -158,19 +114,4 @@ named!(pub var_name<&[u8], &[u8]>,
 
 fn is_alphanumunder(c: u8)-> bool {
     c.is_ascii_alphanumeric() || c == b'_' || c == b'-'
-}
-
-#[cfg(test)]
-mod tests{
-    use std::fs::read_to_string;
-    use super::*;
-    #[test]
-    fn test() {
-        let conf = read_to_string("config/tcp.reflow").unwrap();
-        let g = get_reflow(conf.as_bytes());
-        match g {
-            Ok((_, k)) =>println!("okay {}", k),
-            Err(x) => println!("err {:?}", x),
-        };
-    }
 }

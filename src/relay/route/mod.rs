@@ -5,9 +5,9 @@ use std::net::SocketAddr;
 use conf::{DomainMatcher, IpMatcher};
 use conf::RoutingBranch;
 use relay::inspect::TcpProtocol;
-use conf::RoutingDecision;
 use std::fmt;
 use util::BsDisp;
+use conf::RoutingAction;
 
 #[derive(Debug)]
 pub struct TcpTrafficInfo<'a> {
@@ -49,7 +49,7 @@ impl TcpRouter {
         TcpRouter { domain_match, ip_match, rules }
     }
 
-    pub fn route(&self, addr: SocketAddr, protocol: &TcpProtocol)-> Option<RoutingDecision> {
+    pub fn route(&self, addr: SocketAddr, protocol: &TcpProtocol)-> Option<RoutingAction> {
         let domain = protocol.get_domain()
             .and_then(|x| {
                 let x: Vec<&[u8]> = x.split(|&y | y==b'.').rev().collect();
@@ -66,11 +66,11 @@ impl TcpRouter {
 
 struct RouteAndTraffic<'a> {
     traffic: TcpTrafficInfo<'a>,
-    route: &'a Option<RoutingDecision>,
+    route: &'a Option<RoutingAction>,
 }
 
 impl<'a> RouteAndTraffic<'a> {
-    fn new(d: &'a Option<RoutingDecision>, t: TcpTrafficInfo<'a>)-> RouteAndTraffic<'a> {
+    fn new(d: &'a Option<RoutingAction>, t: TcpTrafficInfo<'a>)-> RouteAndTraffic<'a> {
         RouteAndTraffic { route: d, traffic: t}
     }
 }
@@ -78,7 +78,7 @@ impl<'a> RouteAndTraffic<'a> {
 impl<'a> fmt::Display for RouteAndTraffic<'a> {
     fn fmt(&self, f: & mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self.route {
-            Some(r) => write!(f, "Route {:?} ", r)?,
+            Some(r) => write!(f, "Route {} ", r)?,
             None => write!(f, "Missing route! ")?,
         }
         write!(f, "{}", self.traffic)?;

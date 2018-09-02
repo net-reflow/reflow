@@ -23,12 +23,12 @@ pub enum RoutingBranch {
     Sequential(Vec<RoutingBranch>),
     Conditional(RoutingCondition),
     /// a match is found
-    Final(RoutingDecision)
+    Final(RoutingAction)
 }
 
 
 impl RoutingBranch {
-    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
+    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<RoutingAction> {
         use self::RoutingBranch::*;
         match self {
             Final(d) => Some(d.clone()),
@@ -44,7 +44,7 @@ impl RoutingBranch {
         }
     }
 
-    fn new_final(x: RoutingDecision)-> RoutingBranch {
+    fn new_final(x: RoutingAction)-> RoutingBranch {
         RoutingBranch::Final(x)
     }
 
@@ -52,7 +52,7 @@ impl RoutingBranch {
         use self::RoutingBranch::*;
         match self {
             Final(ref mut d) =>{
-                d.route.insert_gateways(gw)?
+                d.insert_gateways(gw)?
             }
             Conditional(ref mut c) => c.insert_gateways(gw)?,
             Sequential(ref mut s) => {
@@ -74,7 +74,7 @@ pub enum RoutingCondition {
 }
 
 impl RoutingCondition {
-    fn decide(&self, info: &TcpTrafficInfo)-> Option<RoutingDecision> {
+    fn decide(&self, info: &TcpTrafficInfo)-> Option<RoutingAction> {
         use self::RoutingCondition::*;
         match self {
             Domain(x) => {
@@ -104,12 +104,6 @@ impl RoutingCondition {
     }
 }
 
-#[derive(Clone)]
-pub struct RoutingDecision {
-    pub route: RoutingAction,
-    additional: Vec<AdditionalAction>,
-}
-
 /// a chosen route
 #[derive(Clone)]
 pub enum RoutingAction {
@@ -119,8 +113,8 @@ pub enum RoutingAction {
 }
 
 impl RoutingAction {
-    fn new_named(x: Bytes) -> RoutingAction {
-        let g = RefVal::Ref(x);
+    fn new_named(x: &[u8]) -> RoutingAction {
+        let g = RefVal::Ref(x.into());
         RoutingAction::Named(g)
     }
 
@@ -137,12 +131,6 @@ impl RoutingAction {
         }
         Ok(())
     }
-}
-
-#[derive(Clone)]
-enum AdditionalAction {
-    PrintLog,
-    SaveSample,
 }
 
 impl fmt::Display for RoutingBranch {
@@ -163,6 +151,24 @@ impl fmt::Display for RoutingBranch {
     }
 }
 
+impl fmt::Debug for RoutingBranch {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        use self::RoutingBranch::*;
+        match self {
+            Sequential(x) => {
+                write!(f, "any [\n")?;
+                for y in x {
+                    write!(f, "{:?}\n", y)?;
+                }
+                write!(f, "]")?;
+            }
+            Conditional(x) => write!(f, "cond {}", x)?,
+            Final(x) => write!(f, "egress {}", x)?,
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Display for RoutingCondition {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use self::RoutingCondition::*;
@@ -171,22 +177,6 @@ impl fmt::Display for RoutingCondition {
             IpAddr(ref m) => { write!(f, "ip ")?; print_mapping(m, f)?;}
             Protocol(ref m) => { write!(f, "protocol ")?; print_mapping(m, f)?;}
             Port(x, y) => { write!(f, "port eq {} => {}", x, y)?; }
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Debug for RoutingDecision {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}", self)
-    }
-}
-
-impl fmt::Display for RoutingDecision {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.route)?;
-        for i in self.additional.iter() {
-            write!(f, " and {}", i)?;
         }
         Ok(())
     }
@@ -205,16 +195,6 @@ impl fmt::Display for RoutingAction {
                 };
                 write!(f, "{}", BsDisp::new(&n))
             },
-        }
-    }
-}
-
-impl fmt::Display for AdditionalAction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        use self::AdditionalAction::*;
-        match self {
-            PrintLog => write!(f, "print_log"),
-            SaveSample => write!(f, "save_sample"),
         }
     }
 }

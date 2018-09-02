@@ -43,7 +43,7 @@ pub fn handle_incoming_tcp(
             let p = client_stream.peer_addr();
             if let Some(r) = r {
                 Either::A(carry_out(
-                    tcp.bytes.freeze(), a, r.route.clone(), client_stream, pool,
+                    tcp.bytes.freeze(), a, r.clone(), client_stream, pool,
                     tcp.protocol,
                 ))
             } else {

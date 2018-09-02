@@ -11,9 +11,18 @@ pub struct Relay {
     pub listen: RelayProto,
     pub rule: RefVal<RoutingBranch>,
 }
-impl fmt::Debug for Relay {
+impl fmt::Display for Relay {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "Relay on {:?}", self.listen)?;
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Relay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Relay on {:?},", self.listen)?;
+        write!(f, "resolver: {:?},", self.resolver)?;
+        write!(f, "rule: {:?},", self.rule)?;
         Ok(())
     }
 }
