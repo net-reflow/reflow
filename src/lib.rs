@@ -1,9 +1,15 @@
 extern crate bytes;
+extern crate error_chain;
 extern crate futures;
 extern crate futures_cpupool;
+#[macro_use]
+extern crate log;
+extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_proto;
 extern crate tokio_service;
+extern crate trust_dns;
+extern crate trust_dns_server;
 
 use std::io;
 use std::str;
@@ -14,7 +20,6 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use futures::Future;
 use futures_cpupool::CpuPool;
 
 use tokio_io::codec::{Encoder, Decoder};
@@ -22,16 +27,18 @@ use tokio_io::codec::{Encoder, Decoder};
 use tokio_proto::TcpServer;
 
 mod proto;
+mod resolver;
 mod ruling;
 mod service;
 
-pub fn run(port: &str) {
+pub fn run(port: &str)-> Result<(), ()> {
     let config_path = "config";
     // Specify the localhost address
     let addr = Ipv4Addr::from_str("127.0.0.1").unwrap();
     let port = u16::from_str(port).unwrap();
     let socket = SocketAddr::new(IpAddr::V4(addr), port);
 
+    let mut core = tokio_core::reactor::Core::new().map_err(|_| ())?;
     let pool = CpuPool::new(20);
     // The builder requires a protocol and an address
     let server = TcpServer::new(proto::LineProto,
@@ -50,7 +57,10 @@ pub fn run(port: &str) {
         let res: Result<(), ()> = Ok(());
         res
     });
-    future.wait();
+    let h = core.handle();
+    resolver::start_resolver(h);
+    core.run(future).map_err(|_| ())?;
+    Ok(())
 }
 
 pub struct LineCodec;
