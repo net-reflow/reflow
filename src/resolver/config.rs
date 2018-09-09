@@ -10,19 +10,21 @@ use std::collections::BTreeMap;
 use toml;
 
 #[derive(Debug)]
-pub struct RegionalResolvers {
-    pub resolv: Vec<(String, SocketAddr)>,
+pub struct DnsProxyConf {
+    pub listen: SocketAddr,
+    pub resolv: BTreeMap<String, SocketAddr>,
     pub default: SocketAddr,
 }
 
 #[derive(Deserialize, Debug)]
 struct ConfValue {
+    listen: SocketAddr,
     servers: BTreeMap<String, net::SocketAddr>,
-    rule: Vec<BTreeMap<String, String>>,
+    rule: BTreeMap<String, String>,
 }
 
-impl RegionalResolvers{
-    pub fn new(conf: path::PathBuf) -> Result<RegionalResolvers, Box<Error>> {
+impl DnsProxyConf {
+    pub fn new(conf: path::PathBuf) -> Result<DnsProxyConf, Box<Error>> {
         let f = fs::File::open(conf).unwrap();
         let mut bufreader = io::BufReader::new(f);
         let mut contents = String::new();
@@ -30,23 +32,19 @@ impl RegionalResolvers{
 
         let conf: ConfValue = toml::from_str(&contents)?;
         let servers = conf.servers;
-        let mut default: Option<SocketAddr> = None;
-        let regions = conf.rule;
-        let resolv = regions.iter().filter_map(|rs| {
-            let region = rs.get("region").unwrap();
-            let servername = rs.get("server").unwrap();
-            let server = servers.get(servername).unwrap();
-            if region == "else" {
-                default = Some(server.clone());
-                None
-            } else {
-                Some((region.clone(), server.clone()))
-            }
-        }).collect();
-        let default = default.ok_or("no default dns server defined")?;
-        Ok(RegionalResolvers{
+        let default = conf.rule.get("else").and_then(|s| {
+            servers.get(s)
+        }).ok_or(io::Error::new(io::ErrorKind::NotFound, "no default dns server defined"))?;
+        let mut resolv =  BTreeMap::new();
+        for (region, server) in &conf.rule {
+            let server_addr = servers.get(server).ok_or(
+             io::Error::new(io::ErrorKind::NotFound, format!("dns server {} defined", server)))?;
+            resolv.insert(region.clone(), server_addr.clone());
+        }
+        Ok(DnsProxyConf {
+            listen: conf.listen,
             resolv: resolv,
-            default: default,
+            default: default.clone(),
         })
     }
 }

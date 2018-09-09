@@ -11,7 +11,7 @@ use trust_dns::rr::domain::Name;
 use trust_dns_server::server::Request;
 
 use super::dnsclient::DnsClient;
-use super::config::RegionalResolvers;
+use super::config::DnsProxyConf;
 use super::super::ruling::Ruler;
 
 pub struct SmartResolver {
@@ -21,20 +21,19 @@ pub struct SmartResolver {
 }
 
 impl SmartResolver {
-    pub fn new(handle: Handle, router: Arc<Ruler>)-> Result<SmartResolver,
+    pub fn new(handle: Handle, router: Arc<Ruler>, regionconf :&DnsProxyConf)-> Result<SmartResolver,
         Box<Error>> {
 
-        let regionconf = RegionalResolvers::new("config/resolve.config".into())?;
         let rresolvers: Vec<(String, Result<DnsClient, ClientError>)> = regionconf.resolv
-            .into_iter().map(|(r, s)| {
-            let dc = DnsClient::new(s, handle.clone());
-            (r, dc)
+            .iter().map(|(r, s)| {
+            let dc = DnsClient::new(s.clone(), handle.clone());
+            (r.clone(), dc)
         }).collect();
         if let Some(_) = rresolvers.iter().find(|&&(_, ref c)| c.is_err()) {
             bail!("error while connecting with a dns server")
         }
         let rresolvers = rresolvers.into_iter().map(|(region, cli)| (region, cli.unwrap())).collect();
-        let dresolver = DnsClient::new(regionconf.default, handle.clone())?;
+        let dresolver = DnsClient::new(regionconf.default.clone(), handle.clone())?;
         Ok(SmartResolver {
             region_resolver: rresolvers,
             default_resolver: dresolver,
@@ -49,11 +48,15 @@ impl SmartResolver {
         }
         let q: &Query = &queries[0];
         let name = q.name();
+        let id = req.message.id();
 
         let client = self.choose_resolver(name);
-        println!("using {} for {}", client, name);
-        let f = client.resolve(req.message.clone(), use_tcp);
-        f
+        let f = client.resolve(req.message.clone(),name, use_tcp);
+        let f = f.and_then(move|mut r: Message| {
+            r.set_id(id);
+            Ok(r)
+        });
+        Box::new(f)
     }
 
     fn choose_resolver(&self,name: &Name)-> &DnsClient {

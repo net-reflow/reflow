@@ -9,7 +9,7 @@ use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::{ future, Future, Stream};
+use futures::{Future, Stream};
 use tokio_core;
 use tokio_core::reactor::Handle;
 
@@ -53,7 +53,7 @@ impl ServerFuture {
                 let r = response.and_then(|res| {
                     let mut rh = response_handle;
                     let _ = rh.send(res).map_err(|_| 5);
-                    future::ok(())
+                    Ok(())
                 }).then(|_| Ok(()));
                 h2.spawn(r);
                 Ok(())
@@ -107,10 +107,10 @@ impl ServerFuture {
                             let f = response.and_then(move |r| {
                                 let mut rh =  response_handle;
                                 let _ = rh.send(r);
-                                future::ok(())
+                                Ok(())
                             }).then(|_| Ok(()));
                             h3.spawn(f);
-                            future::ok(())
+                            Ok(())
                         })
                         .map_err(move |e| {
                             debug!("error in TCP request_stream src: {:?} error: {}",
@@ -119,7 +119,7 @@ impl ServerFuture {
                         })
                     );
 
-                future::ok(())
+                Ok(())
             }).map_err(|_| ());
         //.map_err(|e| debug!("error in inbound tcp_stream: {}", e))
         &handle.clone().spawn(f);

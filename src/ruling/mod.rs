@@ -14,6 +14,8 @@ use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::str::FromStr;
 
+pub mod serve;
+
 pub struct Ruler{
     domain_trie: Trie<String, Arc<String>>,
     ip4_table: IpLookupTable<Ipv4Addr, Arc<String>>
