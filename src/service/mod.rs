@@ -6,11 +6,13 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use super::ruling;
+use super::ruling::DomainMatcher;
+use super::ruling::IpMatcher;
 
 
 pub struct Echo {
-    ruler: Arc<ruling::Ruler>
+    domain_matcher: Arc<DomainMatcher>,
+    ip_matcher: Arc<IpMatcher>
 }
 
 impl Service for Echo {
@@ -33,9 +35,10 @@ impl Service for Echo {
 }
 
 impl Echo {
-    pub fn new(ruler: Arc<ruling::Ruler>) -> Echo {
+    pub fn new(ruler: Arc<DomainMatcher>, ip_matcher: Arc<IpMatcher>) -> Echo {
         Echo {
-            ruler: ruler
+            domain_matcher: ruler,
+            ip_matcher: ip_matcher,
         }
     }
 
@@ -47,7 +50,7 @@ impl Echo {
         let t = ws[0];
         let a = ws[1];
         if t == "d" {
-            let d = self.ruler.rule_domain(a);
+            let d = self.domain_matcher.rule_domain(a);
             if let Some(s) = d {
                 s.to_string()
             } else {
@@ -56,7 +59,7 @@ impl Echo {
         } else if t == "i4" {
             let ip = Ipv4Addr::from_str(a);
             if let Ok(ip) = ip {
-                if let Some(r) = self.ruler.rule_ip4(ip) {
+                if let Some(r) = self.ip_matcher.rule_ip4(ip) {
                     r.to_string()
                 } else {
                     "none".to_string()

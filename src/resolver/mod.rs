@@ -13,10 +13,10 @@ mod monitor_failure;
 mod server_future;
 mod config;
 
-use super::ruling::Ruler;
+use super::ruling::DomainMatcher;
 use self::config::DnsProxyConf;
 
-pub fn start_resolver(h: Handle, router: Arc<Ruler>)-> Result<(), Box<Error>> {
+pub fn start_resolver(h: Handle, router: Arc<DomainMatcher>)-> Result<(), Box<Error>> {
     let conf = DnsProxyConf::new("config/resolve.config".into())?;
     let handler = handler::SmartResolver::new( h.clone(), router, &conf)?;
     let server = server_future::ServerFuture::new(handler)?;

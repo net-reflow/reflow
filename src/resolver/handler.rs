@@ -12,16 +12,16 @@ use trust_dns_server::server::Request;
 
 use super::dnsclient::DnsClient;
 use super::config::DnsProxyConf;
-use super::super::ruling::Ruler;
+use super::super::ruling::DomainMatcher;
 
 pub struct SmartResolver {
     region_resolver: Vec<(String, DnsClient)>,
     default_resolver: DnsClient,
-    router: Arc<Ruler>,
+    router: Arc<DomainMatcher>,
 }
 
 impl SmartResolver {
-    pub fn new(handle: Handle, router: Arc<Ruler>, regionconf :&DnsProxyConf)-> Result<SmartResolver,
+    pub fn new(handle: Handle, router: Arc<DomainMatcher>, regionconf :&DnsProxyConf)-> Result<SmartResolver,
         Box<Error>> {
 
         let rresolvers: Vec<(String, Result<DnsClient, ClientError>)> = regionconf.resolv
