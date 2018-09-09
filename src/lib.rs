@@ -1,5 +1,6 @@
 extern crate bytes;
 extern crate futures;
+extern crate futures_cpupool;
 extern crate tokio_io;
 extern crate tokio_proto;
 extern crate tokio_service;
@@ -7,6 +8,15 @@ extern crate tokio_service;
 use std::io;
 use std::str;
 use bytes::BytesMut;
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use futures::Future;
+use futures_cpupool::CpuPool;
+
 use tokio_io::codec::{Encoder, Decoder};
 
 use tokio_proto::TcpServer;
@@ -15,20 +25,32 @@ mod proto;
 mod ruling;
 mod service;
 
-pub fn run() {
+pub fn run(port: &str) {
     let config_path = "config";
     // Specify the localhost address
-    let addr = "127.0.0.1:31792".parse().unwrap();
+    let addr = Ipv4Addr::from_str("127.0.0.1").unwrap();
+    let port = u16::from_str(port).unwrap();
+    let socket = SocketAddr::new(IpAddr::V4(addr), port);
 
+    let pool = CpuPool::new(20);
     // The builder requires a protocol and an address
-    let server = TcpServer::new(proto::LineProto, addr);
+    let server = TcpServer::new(proto::LineProto,
+                                socket);
 
     // We provide a way to *instantiate* the service for each new
     // connection; here, we just immediately return a new instance.
-    server.serve(move || {
-        let s = service::Echo::new(config_path);
-        Ok(s)
+    let ruler = ruling::Ruler::new(config_path);
+    let r = Arc::new(ruler);
+
+    let future = pool.spawn_fn(move|| {
+        server.serve(move || {
+            let s = service::Echo::new(r.clone());
+            Ok(s)
+        });
+        let res: Result<(), ()> = Ok(());
+        res
     });
+    future.wait();
 }
 
 pub struct LineCodec;
