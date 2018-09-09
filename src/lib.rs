@@ -1,4 +1,5 @@
 extern crate bytes;
+#[macro_use]
 extern crate error_chain;
 extern crate futures;
 extern crate futures_cpupool;
@@ -8,9 +9,12 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_proto;
 extern crate tokio_service;
-extern crate tokio_timer;
 extern crate trust_dns;
+extern crate toml;
 extern crate trust_dns_server;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
 
 use std::io;
 use std::str;
@@ -50,16 +54,17 @@ pub fn run(port: &str)-> Result<(), ()> {
     let ruler = ruling::Ruler::new(config_path);
     let r = Arc::new(ruler);
 
+    let r1 = r.clone();
     let future = pool.spawn_fn(move|| {
         server.serve(move || {
-            let s = service::Echo::new(r.clone());
+            let s = service::Echo::new(r1.clone());
             Ok(s)
         });
         let res: Result<(), ()> = Ok(());
         res
     });
     let h = core.handle();
-    resolver::start_resolver(h);
+    resolver::start_resolver(h, r.clone());
     core.run(future).map_err(|_| ())?;
     Ok(())
 }

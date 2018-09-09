@@ -13,9 +13,10 @@ tokio-io = "0.1"
 tokio-core = "0.1"
 tokio-proto = "0.1"
 tokio-service = "0.1"
-tokio-timer = "0.1"
 radix_trie = "0.1.*"
 treebitmap = { path="../treebitmap" }
 trust-dns-server = "0.12.0"
 trust-dns = "0.12.0"
-
+toml = "0.4.2"
+serde_derive = "1.0.21"
+serde="1.0"

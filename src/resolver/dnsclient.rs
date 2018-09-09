@@ -1,10 +1,10 @@
 use std::net::SocketAddr;
 use std::cell::RefCell;
+use std::fmt;
 
 use futures::Future;
 use tokio_core::reactor::Handle;
 use trust_dns::error::*;
-use trust_dns::op::Query;
 use trust_dns::op::Message;
 use trust_dns::udp::UdpClientStream;
 use trust_dns::tcp::TcpClientStream;
@@ -16,6 +16,12 @@ pub struct DnsClient {
     fut_client: RefCell<BasicClientHandle>,
     server: SocketAddr,
     handle: Handle,
+}
+
+impl fmt::Display for DnsClient {
+    fn fmt(&self, fmt: &mut fmt::Formatter)-> fmt::Result {
+        write!(fmt, "{}", self.server)
+    }
 }
 
 impl DnsClient {
@@ -36,13 +42,12 @@ impl DnsClient {
         futtcp
     }
 
-    pub fn resolve(&self, q: &Query, use_tcp: bool)-> Box<Future<Item=Message, Error=ClientError>> {
-        let name = q.name();
+    pub fn resolve(&self, q: Message, use_tcp: bool)-> Box<Future<Item=Message, Error=ClientError>> {
         let res = if use_tcp {
             let mut c = self.get_tcp_client();
-            c.query(name.clone(), q.query_class(), q.query_type())
+            c.send(q)
         } else {
-            self.fut_client.borrow_mut().query(name.clone(), q.query_class(), q.query_type())
+            self.fut_client.borrow_mut().send(q)
         };
         res
     }
