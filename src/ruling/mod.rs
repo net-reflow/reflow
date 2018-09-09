@@ -1,4 +1,3 @@
-pub mod serve;
 mod domain_match;
 mod ip_matcher;
 mod util;

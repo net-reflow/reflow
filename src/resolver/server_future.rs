@@ -76,7 +76,7 @@ impl ServerFuture {
     ///               only, this would require some type of whitelisting.
     pub fn listen_tcp(&self,
                       listener: std::net::TcpListener,
-                      timeout: Duration, handle: Handle) {
+                      timeout: Duration, handle: Handle)-> Box<Future<Item=(), Error=()>> {
         let handler = self.handler.clone();
         // TODO: this is an awkward interface with socketaddr...
         let addr = listener.local_addr().unwrap();
@@ -122,7 +122,7 @@ impl ServerFuture {
                 Ok(())
             }).map_err(|_| ());
         //.map_err(|e| debug!("error in inbound tcp_stream: {}", e))
-        &handle.clone().spawn(f);
+        Box::new(f)
     }
 }
 
