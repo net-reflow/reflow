@@ -1,7 +1,8 @@
-extern crate reflow;
+extern crate droxy;
 
-use reflow::run;
+use droxy::run;
 
 fn main() {
     println!("Hello, world!");
+    run();
 }
