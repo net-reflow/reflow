@@ -12,18 +12,23 @@ use tokio_io::codec::{Encoder, Decoder};
 use tokio_proto::TcpServer;
 
 mod proto;
+mod ruling;
 mod service;
 
 pub fn run() {
+    let config_path = "config";
     // Specify the localhost address
-    let addr = "0.0.0.0:31792".parse().unwrap();
+    let addr = "127.0.0.1:31792".parse().unwrap();
 
     // The builder requires a protocol and an address
     let server = TcpServer::new(proto::LineProto, addr);
 
     // We provide a way to *instantiate* the service for each new
     // connection; here, we just immediately return a new instance.
-    server.serve(|| Ok(service::Echo));
+    server.serve(move || {
+        let s = service::Echo::new(config_path);
+        Ok(s)
+    });
 }
 
 pub struct LineCodec;

@@ -10,4 +10,5 @@ tokio-io = "0.1"
 tokio-core = "0.1"
 tokio-proto = "0.1"
 tokio-service = "0.1"
+radix_trie = "0.1.*"
 
