@@ -22,15 +22,6 @@ named!(pub parse_tls_extension_sni_content<TlsExtension>,
     )
 );
 
-named!(pub parse_tls_extension_sni<TlsExtension>,
-    do_parse!(
-        tag!([0x00,0x00]) >>
-        ext_len:  be_u16 >>
-        ext: flat_map!(take!(ext_len),parse_tls_extension_sni_content) >>
-        ( ext )
-    )
-);
-
 fn parse_tls_extension_with_type(i: &[u8], ext_type:u16, ext_len:u16) -> IResult<&[u8],TlsExtension> {
     match ext_type {
         0x0000 => parse_tls_extension_sni_content(i),
