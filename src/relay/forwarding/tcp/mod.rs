@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 
 mod inspect;
 use self::inspect::inspect_tcp;
+pub use self::inspect::TcpTrafficInfo;
 
 pub fn handle_incoming_tcp(client_stream: TcpStream, a: SocketAddr)-> impl Future<Item=(), Error=Error> {
     inspect_tcp(client_stream).and_then(move|tcp| {

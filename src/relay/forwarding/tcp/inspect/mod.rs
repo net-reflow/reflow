@@ -8,28 +8,7 @@ use bytes::BytesMut;
 mod codec;
 mod parse;
 use self::codec::ReadGuessHead;
-
-#[derive(Debug)]
-pub enum  TcpTrafficInfo {
-    PlainHttp(HttpInfo),
-    SSH,
-    Unidentified,
-}
-
-#[derive(Debug)]
-pub struct HttpInfo {
-    host: String,
-    user_agent: Option<String>,
-}
-
-impl HttpInfo {
-    pub fn new(h: &[u8], ua: Option<&[u8]>)-> HttpInfo {
-        HttpInfo {
-            host: String::from_utf8_lossy(h).into(),
-            user_agent: ua.map(|b| String::from_utf8_lossy(b).into(),),
-        }
-    }
-}
+pub use self::parse::TcpTrafficInfo;
 
 pub struct InspectedTcp {
     /// client stream
@@ -37,7 +16,7 @@ pub struct InspectedTcp {
     /// bytes read
     pub bytes: BytesMut,
     #[allow(dead_code)]
-    kind: TcpTrafficInfo,
+    kind: String,
 }
 
 /// read some bytes and guess

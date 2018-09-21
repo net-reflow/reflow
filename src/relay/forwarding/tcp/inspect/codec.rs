@@ -9,7 +9,7 @@ use futures::Future;
 use failure::Error;
 
 use super::InspectedTcp;
-use relay::forwarding::tcp::inspect::parse::guess_bytes;
+use relay::forwarding::tcp::inspect::parse::route;
 
 pub struct ReadGuessHead {
     state: ReadGuessHeadState
@@ -53,7 +53,7 @@ impl Future for ReadGuessHead {
             let guess = {
                 match self.state {
                     ReadGuessHeadState::Reading {socket: ref _s, ref rd} => {
-                        guess_bytes(&rd)
+                        route(&rd)
                     }
                     _ => panic!("poll after finish"),
                 }

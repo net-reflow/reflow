@@ -4,6 +4,7 @@ use std::fmt;
 mod sni;
 
 use self::sni::{parse_tls_extension, TlsExtension};
+use std::borrow::Cow;
 
 /// Content type, as defined in IANA TLS ContentType registry
 const TLS_RECORD_TYPE_HANDSHAKE: u8 = 0x16;
@@ -100,6 +101,23 @@ impl<'a> TlsClientHello<'a> {
             ext: e,
         }
     }
+
+    #[allow(dead_code)]
+    pub fn get_sni(&self)-> Option<Cow<str>> {
+        for e in &self.ext {
+            match e {
+                TlsExtension::SNI(names) => {
+                    for (nt, nb) in names {
+                        if *nt == 0 {
+                            return Some(String::from_utf8_lossy(nb));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        return None;
+    }
 }
 
 
@@ -160,9 +178,9 @@ mod tests {
         let bytes = [
             0x16, // handshake
             0x03, 0x01,
-            0x01, 0x2c, // length: 300 bytes
+            0x01, 0x3e, // length: 318 bytes
             0x01, // client hello
-            0x00, 0x01, 0x28, // len: 296
+            0x00, 0x01, 0x3a, // len: 314
             0x03, 0x03, // tls 1.2
             // random
             0x97, 0x7e, 0xaa, 0x9c, 0x0f, 0xa9, 0xc4, 0x9f,
@@ -193,7 +211,15 @@ mod tests {
 
             0x01, 0x00, // compression
 
-            0x00, 0x55, // ext len: 85
+            0x00, 0x67, // ext len: 103
+
+            0x00, 0x00, // Extension Type: Server Name (check extension type)
+            0x00, 0x0e, // Length (use for bounds checking)
+            0x00, 0x0c, // Server Name Indication Length
+            0x00, // Server Name Type: host_name (check server name type)
+            0x00, 0x09, // Length (length of your data)
+            // "localhost" (data your after)
+            0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x68, 0x6f, 0x73, 0x74,
 
             0x00, 0x0b, // ec_point_formats
             0x00, 0x04,
@@ -228,7 +254,8 @@ mod tests {
             session_id: None,
             ciphers: ciphers,
             comp: &[0],
-            ext: vec![ TlsExtension::Unknown(11, &[3, 0, 1, 2]),
+            ext: vec![ TlsExtension::SNI(vec![(0, "localhost".as_bytes())]),
+                       TlsExtension::Unknown(11, &[3, 0, 1, 2]),
                        TlsExtension::Unknown(10, &[0x2e, 0x79, 0x60, 0x6c, 0x1e, 0x66, 0xe7, 0x96, 0x7a, 0xa9,
             0x8c, 0xdf, 0x5f, 0xd8, 0x75, 0x91, 0x66, 0x6a, 0xcb, 0x73,
             0x2d, 0x92, 0xea, 0xf8, 0xd8, 0x1d, 0xf7, 0xf5,]),

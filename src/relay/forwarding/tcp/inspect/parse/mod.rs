@@ -3,10 +3,37 @@ use httparse;
 
 mod tls;
 
-use relay::forwarding::tcp::inspect::TcpTrafficInfo;
-use super::HttpInfo;
+use self::tls::TlsClientHello;
+use std::borrow::Cow;
 
-pub fn guess_bytes(bytes: &BytesMut) ->Option<TcpTrafficInfo> {
+#[derive(Debug)]
+pub enum TcpTrafficInfo<'a> {
+    PlainHttp(HttpInfo<'a>),
+    SSH,
+    Tls(TlsClientHello<'a>),
+    Unidentified,
+}
+
+#[derive(Debug)]
+pub struct HttpInfo<'a> {
+    host: Cow<'a, str>,
+    user_agent: Option<Cow<'a, str>>,
+}
+
+impl<'a> HttpInfo<'a> {
+    pub fn new(h: &'a[u8], ua: Option<&'a[u8]>)-> HttpInfo<'a> {
+        HttpInfo {
+            host: String::from_utf8_lossy(h),
+            user_agent: ua.map(|b| String::from_utf8_lossy(b)),
+        }
+    }
+}
+
+pub fn route(bytes: &BytesMut)-> Option<String> {
+    guess_bytes(bytes).map(|k| format!("{:?}", k))
+}
+
+fn guess_bytes(bytes: &BytesMut) ->Option<TcpTrafficInfo> {
     debug!("bytes {:?}", bytes);
     if let Some(h) = guess_http(bytes) { return Some(TcpTrafficInfo::PlainHttp(h)) }
     if bytes.starts_with(b"SSH-2.0") && bytes.ends_with(b"\r\n") {
