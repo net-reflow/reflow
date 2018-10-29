@@ -14,6 +14,8 @@ use treebitmap::IpLookupTable;
 use super::util::find_addr_map_files;
 use std::path;
 use std::net::IpAddr;
+use super::util::lines_without_comments;
+use util::BsDisp;
 
 pub struct IpMatcher {
     ip4_table: IpLookupTable<Ipv4Addr, Bytes>
@@ -50,22 +52,25 @@ fn build_ip4_table(regions: &HashMap<Bytes, Vec<DirEntry>>)
     for (region, conf) in regions {
         for entry in conf.iter() {
             let  contents = fs::read(entry.path())?;
-            let ls = contents.split(|&x| x == b'\r' || x == b'\n');
+            let ls = lines_without_comments(&contents);
             for line in ls {
-                if line.len() == 0 || line.starts_with(b"#") { continue }
-                let ip4 = line.split(|x| x.is_ascii_whitespace()).next();
-                if let Some(ip) = ip4 {
-                    let mut p = ip.splitn(2, |&x| x == b'/');
-                    let a = p.next().ok_or_else(|| format_err!("Not address"))?;
-                    let m = p.next().ok_or_else(|| format_err!("Not masklen"))?;
-                    let a = from_utf8(a)?;
-                    let a = Ipv4Addr::from_str(a)?;
-                    let m = from_utf8(m)?;
-                    let m = u32::from_str(m)?;
-                    i4table.insert(a, m, region.clone());
-                }
+                let (a,m) = try_parse_ip_network(line)
+                    .map_err(|e| format_err!(
+                    "Can't parse {} as IP network: {:?}", BsDisp::new(line), e))?;
+                i4table.insert(a, m, region.clone());
             }
         }
     }
     Ok(i4table)
+}
+
+fn try_parse_ip_network(line: &[u8])-> Result<(Ipv4Addr, u32), Error> {
+    let mut p = line.splitn(2, |&x| x == b'/');
+    let a = p.next().ok_or_else(|| format_err!("Not address"))?;
+    let m = p.next().ok_or_else(|| format_err!("Not masklen"))?;
+    let a = from_utf8(a)?;
+    let a = Ipv4Addr::from_str(a)?;
+    let m = from_utf8(m)?;
+    let m = u32::from_str(m)?;
+    Ok((a, m))
 }

@@ -12,6 +12,7 @@ use super::util::find_domain_map_files;
 use self::radix_trie::Trie;
 use std::path;
 use util::BsDisp;
+use super::util::lines_without_comments;
 
 pub struct DomainMatcher {
     domain_trie: Trie<Vec<u8>, Bytes>,
@@ -44,28 +45,25 @@ fn build_domain_trie(regions: &HashMap<Bytes, Vec<DirEntry>>)
     for (region, conf) in regions {
         for entry in conf.iter() {
             let contents  = fs::read(entry.path())?;
+            let ls = lines_without_comments(&contents);
             let mut ns: Vec<&[u8]> = vec![];
 
-            for line in contents.split(|&x| x == b'\r' || x == b'\n') {
-                if line.len() == 0 || line.starts_with(b"#") { continue }
-                let domain = line.split(|x| x.is_ascii_whitespace()).next();
-                if let Some(d) = domain {
-                    let mut ds: Vec<&[u8]> = d.split(|&x| x==b'.').collect();
-                    for i in 0..ds.len() {
-                        if ds[i].len() == 0 {
-                            ds[i] = ns[i];
+            for d in ls {
+                let mut ds: Vec<&[u8]> = d.split(|&x| x==b'.').collect();
+                for i in 0..ds.len() {
+                    if ds[i].len() == 0 {
+                        ds[i] = ns[i];
+                    } else {
+                        if i < ns.len() {
+                            ns[i] = ds[i];
                         } else {
-                            if i < ns.len() {
-                                ns[i] = ds[i];
-                            } else {
-                                assert_eq!(i,ns.len());
-                                ns.push(ds[i]);
-                            }
+                            assert_eq!(i,ns.len());
+                            ns.push(ds[i]);
                         }
                     }
-                    let d = ds.join(&b'.');
-                    trie.insert(d, region.clone());
                 }
+                let d = ds.join(&b'.');
+                trie.insert(d, region.clone());
             }
         }
     }
