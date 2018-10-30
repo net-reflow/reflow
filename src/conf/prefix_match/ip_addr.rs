@@ -69,15 +69,18 @@ impl IpMatcher {
 fn try_parse_ip_network(line: &[u8])-> Result<(IpAddr, u32), Error> {
     let mut p = line.splitn(2, |&x| x == b'/');
     let a = p.next().ok_or_else(|| format_err!("Not address"))?;
-    let m = p.next().ok_or_else(|| format_err!("Not masklen"))?;
     let a = from_utf8(a)?;
     let a = Ipv4Addr::from_str(a)
         .map(|a| IpAddr::V4(a))
         .or_else(|_e| {
             Ipv6Addr::from_str(a).map(|a| IpAddr::V6(a))
         })?;
-    let m = from_utf8(m)?;
-    let m = u32::from_str(m)?;
+    let m = if let Some(m) = p.next() {
+        let m = from_utf8(m)?;
+        u32::from_str(m)?
+    } else {
+        if a.is_ipv4() { 32 } else { 128 }
+    };
     Ok((a, m))
 }
 
