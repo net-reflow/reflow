@@ -80,3 +80,36 @@ fn try_parse_ip_network(line: &[u8])-> Result<(IpAddr, u32), Error> {
     let m = u32::from_str(m)?;
     Ok((a, m))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path;
+    use std::fs;
+    use super::IpMatcher;
+    use bytes::Bytes;
+    use std::net::IpAddr;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_some_addresses() {
+        let p = path::PathBuf::from("test/conf.d");
+        let f = fs::read_to_string(p.join("addrzone-expectation")).unwrap();
+        let r =
+            f.lines().filter_map(|l: &str|-> Option<(IpAddr, Option<Bytes>)> {
+                let l = l.trim();
+                if l.len() == 0 {
+                    None
+                } else {
+                    let v: Vec<&str> = l.trim().split_whitespace().collect();
+                    let a = IpAddr::from_str(v[0]).unwrap();
+                    let r = v.get(1).map(|&x| x.into());
+                    Some((a, r))
+                }
+            });
+        let d = IpMatcher::new(&p).unwrap();
+        for (h, v) in r {
+            let j = d.match_ip(h);
+            assert_eq!(j, v, "testing address {:?}", h);
+        }
+    }
+}
