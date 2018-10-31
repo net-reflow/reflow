@@ -91,3 +91,12 @@ fn find_dir_entris(dir: DirEntry)-> io::Result<Vec<DirEntry>> {
     }).collect();
     Ok(entries)
 }
+
+pub fn lines_without_comments(bytes: &[u8])->impl Iterator<Item=&[u8]> {
+    bytes
+        .split(|&x| x == b'\r' || x == b'\n')
+        .map(|line: &[u8]| {
+        line.split(|&x| x == b'#').next().unwrap_or(b"")
+            .split(|x| x.is_ascii_whitespace()).next().unwrap_or(b"")
+    }).filter(|l| l.len() > 0)
+}

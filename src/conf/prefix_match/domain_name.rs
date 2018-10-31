@@ -12,6 +12,7 @@ use super::util::find_domain_map_files;
 use self::radix_trie::Trie;
 use std::path;
 use util::BsDisp;
+use super::util::lines_without_comments;
 
 pub struct DomainMatcher {
     domain_trie: Trie<Vec<u8>, Bytes>,
@@ -44,28 +45,25 @@ fn build_domain_trie(regions: &HashMap<Bytes, Vec<DirEntry>>)
     for (region, conf) in regions {
         for entry in conf.iter() {
             let contents  = fs::read(entry.path())?;
+            let ls = lines_without_comments(&contents);
             let mut ns: Vec<&[u8]> = vec![];
 
-            for line in contents.split(|&x| x == b'\r' || x == b'\n') {
-                if line.len() == 0 || line.starts_with(b"#") { continue }
-                let domain = line.split(|x| x.is_ascii_whitespace()).next();
-                if let Some(d) = domain {
-                    let mut ds: Vec<&[u8]> = d.split(|&x| x==b'.').collect();
-                    for i in 0..ds.len() {
-                        if ds[i].len() == 0 {
-                            ds[i] = ns[i];
+            for d in ls {
+                let mut ds: Vec<&[u8]> = d.split(|&x| x==b'.').collect();
+                for i in 0..ds.len() {
+                    if ds[i].len() == 0 {
+                        ds[i] = ns[i];
+                    } else {
+                        if i < ns.len() {
+                            ns[i] = ds[i];
                         } else {
-                            if i < ns.len() {
-                                ns[i] = ds[i];
-                            } else {
-                                assert_eq!(i,ns.len());
-                                ns.push(ds[i]);
-                            }
+                            assert_eq!(i,ns.len());
+                            ns.push(ds[i]);
                         }
                     }
-                    let d = ds.join(&b'.');
-                    trie.insert(d, region.clone());
                 }
+                let d = ds.join(&b'.');
+                trie.insert(d, region.clone());
             }
         }
     }
@@ -93,20 +91,19 @@ mod tests {
 
     #[test]
     fn test_some_domains() {
-        let p = path::PathBuf::from("config");
-        let f = fs::read_to_string(p.join("domain-region-test")).unwrap();
+        let p = path::PathBuf::from("test/conf.d");
+        let f = fs::read_to_string(p.join("namezone-expectation")).unwrap();
         let r =
-            f.lines().map(|l|-> (String, Option<Bytes>) {
-                let v: Vec<&str> = l.split_whitespace().collect();
-                let d: Vec<&str> = v[0].split('.').rev().collect();
-                let d = d.join(".");
+            f.lines().map(|l|-> (&str, Option<Bytes>) {
+                let v: Vec<&str> = l.trim().split_whitespace().collect();
+                let d = v[0];
                 let r = v.get(1).map(|&x| x.into());
                 (d, r)
             });
         let d = DomainMatcher::new(&p).unwrap();
         for (h, v) in r {
             let j = d.rule_domain(h.as_bytes());
-            assert_eq!(j, v);
+            assert_eq!(j, v, "testing {}", h);
         }
     }
 }
