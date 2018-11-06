@@ -56,7 +56,7 @@ impl RoutingBranch {
             }
             Conditional(ref mut c) => c.insert_gateways(gw)?,
             Sequential(ref mut s) => {
-                for mut r in s {
+                for r in s {
                     r.insert_gateways(gw)?;
                 }
             }
@@ -97,7 +97,7 @@ impl RoutingCondition {
             IpAddr(x) => x,
             Protocol(x) => x,
         };
-        for (_k, mut v) in m {
+        for (_k, v) in m {
             v.insert_gateways(gw)?;
         }
         Ok(())

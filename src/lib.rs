@@ -1,5 +1,4 @@
 #![feature(try_from)]
-#![feature(rust_2018_preview)]
 
 extern crate byteorder;
 extern crate bytes;

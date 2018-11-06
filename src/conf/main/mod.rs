@@ -76,10 +76,10 @@ pub fn load_conf<P: AsRef<Path>>(p: P)-> Result<MainConf, Error> {
         let es: Vec<&Bytes> = egresses.keys().collect();
         check_var_name(es)?;
     }
-    for (_name, mut rule) in &mut rules {
+    for (_name, rule) in &mut rules {
         rule.insert_gateways(&egresses)?;
     }
-    for mut relay in &mut relays {
+    for relay in &mut relays {
         relay.rule.insert_value(&rules).map_err(|e| {
             format_err!("Rule {} is not defined", BsDisp::new(&e))
         })?;
