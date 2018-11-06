@@ -11,7 +11,7 @@ use failure::Error;
 use super::util::find_domain_map_files;
 use self::radix_trie::Trie;
 use std::path;
-use util::BsDisp;
+use crate::util::BsDisp;
 use super::util::lines_without_comments;
 use std::time::Instant;
 

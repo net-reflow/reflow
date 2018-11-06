@@ -16,11 +16,11 @@ mod relay;
 
 use self::parse::{conf_items, Item};
 use std::sync::Arc;
-use conf;
+use crate::conf;
 pub use self::util::RefVal;
-pub use conf::main::dns::{DnsProxy, NameServer, NameServerRemote};
-pub use conf::main::relay::{Relay, RelayProto};
-use util::BsDisp;
+pub use crate::conf::main::dns::{DnsProxy, NameServer, NameServerRemote};
+pub use crate::conf::main::relay::{Relay, RelayProto};
+use crate::util::BsDisp;
 use super::util::all_comments_or_space;
 
 pub struct MainConf {

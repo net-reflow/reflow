@@ -1,10 +1,10 @@
 use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::fmt;
-use conf::RoutingBranch;
-use conf::main::util::RefVal;
-use conf::main::dns::NameServer;
-use conf::NameServerRemote;
+use crate::conf::RoutingBranch;
+use crate::conf::main::util::RefVal;
+use crate::conf::main::dns::NameServer;
+use crate::conf::NameServerRemote;
 
 pub struct Relay {
     pub resolver: Option<NameServer>,

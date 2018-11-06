@@ -7,17 +7,17 @@ use super::client::socks::SockGetterAsync;
 use super::client::udp::udp_get;
 use futures_cpupool::CpuPool;
 use std::io;
-use conf::EgressAddr;
+use crate::conf::EgressAddr;
 use std::net::IpAddr;
 use std::net::UdpSocket as StdUdpSocket;
 use tokio::net::UdpSocket;
 use std::time::Duration;
-use resolver::client::TIMEOUT;
+use crate::resolver::client::TIMEOUT;
 use tokio::reactor::Handle;
 use futures::future::Either;
-use util::Either3;
-use conf::NameServer;
-use conf::NameServerRemote;
+use crate::util::Either3;
+use crate::conf::NameServer;
+use crate::conf::NameServerRemote;
 
 #[derive(Debug)]
 pub enum DnsClient {

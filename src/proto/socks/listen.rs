@@ -10,7 +10,7 @@ use super::read_handshake_request;
 use super::heads::handle_socks_head;
 use super::heads::read_command;
 use std::io;
-use proto::socks::TcpRequestHeader;
+use crate::proto::socks::TcpRequestHeader;
 
 #[allow(dead_code)]
 type SockReq = (TcpStream, TcpRequestHeader);

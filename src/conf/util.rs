@@ -60,7 +60,7 @@ pub fn all_comments_or_space(bs: &[u8])->bool {
 #[cfg(test)]
 mod tests {
     use super::all_comments_or_space;
-    use util::BsDisp;
+    use crate::util::BsDisp;
     #[test]
     fn test() {
         let comments = ["", "  ", " #lorem\n", "# ipsum\n#\n", " \n\n"];

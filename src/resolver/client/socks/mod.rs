@@ -16,7 +16,7 @@ use super::TIMEOUT;
 
 use super::super::dnsclient::flat_result_future;
 use futures::future::Either;
-use conf::NameServerRemote;
+use crate::conf::NameServerRemote;
 
 /// Do dns queries through a socks5 proxy
 pub struct SockGetterAsync {

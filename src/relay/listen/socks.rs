@@ -1,4 +1,4 @@
-use proto::socks::listen::listen;
+use crate::proto::socks::listen::listen;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use failure::Error;
@@ -6,15 +6,15 @@ use futures::{Stream, Future};
 use tokio;
 use trust_dns_resolver::ResolverFuture;
 
-use relay::forwarding::handle_incoming_tcp;
+use crate::relay::forwarding::handle_incoming_tcp;
 use futures::future::Either;
 use futures::future;
 use tokio::net::TcpStream;
-use proto::socks::Command;
-use proto::socks::Address;
-use proto::socks::SocksError;
-use proto::socks::TcpRequestHeader;
-use relay::TcpRouter;
+use crate::proto::socks::Command;
+use crate::proto::socks::Address;
+use crate::proto::socks::SocksError;
+use crate::proto::socks::TcpRequestHeader;
+use crate::relay::TcpRouter;
 use futures_cpupool::CpuPool;
 
 pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>, p: CpuPool)->Result<(), Error >{

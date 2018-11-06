@@ -5,17 +5,17 @@ use failure::Error;
 use tokio_io::io::read_exact;
 use tokio_io::io::write_all;
 
-use proto::socks::TcpRequestHeader;
-use proto::socks::consts;
-use proto::socks::SocksError;
-use proto::socks::Address;
+use crate::proto::socks::TcpRequestHeader;
+use crate::proto::socks::consts;
+use crate::proto::socks::SocksError;
+use crate::proto::socks::Address;
 use std::net::Shutdown;
 use tokio::net::TcpStream;
 use std::net::SocketAddr;
 use bytes::BytesMut;
 use bytes::BufMut;
-use proto::socks::consts::Reply;
-use proto::socks::TcpResponseHeader;
+use crate::proto::socks::consts::Reply;
+use crate::proto::socks::TcpResponseHeader;
 use super::super::codec::write_address;
 
 pub fn read_command(r: TcpStream, peer: SocketAddr)

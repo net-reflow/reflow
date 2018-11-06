@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
-use conf::Egress;
-use conf::main::util::RefVal;
+use crate::conf::Egress;
+use crate::conf::main::util::RefVal;
 use bytes::Bytes;
 use failure::Error;
 use std::collections::BTreeMap;
 use std::fmt;
-use util::BsDisp;
+use crate::util::BsDisp;
 
 #[derive(Debug)]
 pub struct DnsProxy {

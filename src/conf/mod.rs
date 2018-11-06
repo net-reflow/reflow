@@ -13,7 +13,7 @@ use bytes::Bytes;
 pub use self::main::{DnsProxy, NameServer, NameServerRemote};
 pub use self::main::{load_conf, MainConf, Relay, RelayProto};
 use std::fmt;
-use util::BsDisp;
+use crate::util::BsDisp;
 
 #[derive(Debug, Clone)]
 pub struct Egress {

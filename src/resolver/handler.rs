@@ -9,11 +9,11 @@ use trust_dns::op::Message;
 use trust_dns::rr::LowerName;
 
 use super::dnsclient::DnsClient;
-use conf::DomainMatcher;
+use crate::conf::DomainMatcher;
 use trust_dns::serialize::binary::BinDecoder;
 use trust_dns::serialize::binary::BinDecodable;
 use futures_cpupool::CpuPool;
-use conf::DnsProxy;
+use crate::conf::DnsProxy;
 
 type SF<V, E> = Future<Item=V, Error=E> + Send;
 

@@ -38,8 +38,8 @@ mod conf;
 mod cmd_options;
 pub mod util;
 
-use relay::run_with_conf;
-use conf::load_conf;
+use crate::relay::run_with_conf;
+use crate::conf::load_conf;
 
 pub fn run()-> Result<(), i32> {
     env_logger::Builder::from_default_env()

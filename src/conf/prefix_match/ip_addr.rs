@@ -13,7 +13,7 @@ use super::util::find_addr_map_files;
 use std::path;
 use std::net::IpAddr;
 use super::util::lines_without_comments;
-use util::BsDisp;
+use crate::util::BsDisp;
 use std::net::Ipv6Addr;
 use std::time::Instant;
 

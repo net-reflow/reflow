@@ -2,12 +2,12 @@ use bytes::Bytes;
 use std::sync::Arc;
 use std::net::SocketAddr;
 
-use conf::{DomainMatcher, IpMatcher};
-use conf::RoutingBranch;
-use relay::inspect::TcpProtocol;
+use crate::conf::{DomainMatcher, IpMatcher};
+use crate::conf::RoutingBranch;
+use crate::relay::inspect::TcpProtocol;
 use std::fmt;
-use util::BsDisp;
-use conf::RoutingAction;
+use crate::util::BsDisp;
+use crate::conf::RoutingAction;
 
 #[derive(Debug)]
 pub struct TcpTrafficInfo<'a> {

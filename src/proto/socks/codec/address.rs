@@ -6,8 +6,8 @@ use byteorder::BigEndian;
 use byteorder::WriteBytesExt;
 use std::net::SocketAddrV6;
 use std::net::SocketAddr;
-use proto::socks::Address;
-use proto::socks::consts;
+use crate::proto::socks::Address;
+use crate::proto::socks::consts;
 
 pub fn write_address<B: BufMut>(addr: &Address, buf: &mut B) {
     match *addr {

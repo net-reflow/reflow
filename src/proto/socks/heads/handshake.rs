@@ -5,11 +5,11 @@ use futures::future::Either;
 use tokio_io::io::write_all;
 use bytes::BufMut;
 
-use proto::socks::consts::AuthMethod;
-use proto::socks::SocksError;
-use proto::socks::HandshakeRequest;
+use crate::proto::socks::consts::AuthMethod;
+use crate::proto::socks::SocksError;
+use crate::proto::socks::HandshakeRequest;
 use bytes::BytesMut;
-use proto::socks::consts;
+use crate::proto::socks::consts;
 
 pub fn handle_socks_head(s: TcpStream, h: HandshakeRequest) -> impl Future<Item=TcpStream, Error=Error> {
     trace!("socks req: {:?}", h);

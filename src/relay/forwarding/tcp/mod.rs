@@ -13,20 +13,20 @@ use net2::TcpBuilder;
 
 mod copy;
 use std::sync::Arc;
-use relay::TcpRouter;
+use crate::relay::TcpRouter;
 use bytes::Bytes;
 use tokio::io;
 use socks::Socks5Stream;
 use std::time::Duration;
 use tokio::reactor::Handle;
 use self::copy::copy_verbose;
-use util::Either3;
+use crate::util::Either3;
 use std::net::IpAddr;
 use std::net;
-use conf::RoutingAction;
-use conf::EgressAddr;
-use relay::inspect::ParseFirstPacket;
-use relay::inspect::TcpProtocol;
+use crate::conf::RoutingAction;
+use crate::conf::EgressAddr;
+use crate::relay::inspect::ParseFirstPacket;
+use crate::relay::inspect::TcpProtocol;
 
 pub const TIMEOUT: u64 = 10;
 

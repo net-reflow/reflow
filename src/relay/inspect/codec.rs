@@ -8,7 +8,7 @@ use futures::Future;
 use failure::Error;
 
 use super::InspectedTcp;
-use relay::inspect::parse::guess_bytes;
+use crate::relay::inspect::parse::guess_bytes;
 
 /// Read the first bytes from the client
 /// combined with the SocketAddr already given

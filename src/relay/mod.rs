@@ -8,11 +8,11 @@ pub mod forwarding;
 
 pub use self::route::TcpRouter;
 use self::listen::listen_socks;
-use resolver::create_resolver;
-use conf::{DomainMatcher,IpMatcher};
+use crate::resolver::create_resolver;
+use crate::conf::{DomainMatcher,IpMatcher};
 use futures_cpupool::CpuPool;
-use conf::Relay;
-use conf::RelayProto;
+use crate::conf::Relay;
+use crate::conf::RelayProto;
 
 /// Start a relay
 pub fn run_with_conf(conf: Relay,

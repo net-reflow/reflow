@@ -1,16 +1,16 @@
 mod udp;
 use failure::Error;
 
-use resolver::serve::udp::UdpListener;
+use crate::resolver::serve::udp::UdpListener;
 use futures::Stream;
 use futures::Future;
 use futures_cpupool::CpuPool;
 use tokio;
 use std::sync::Arc;
 
-use conf::DomainMatcher;
-use resolver::handler;
-use conf::DnsProxy;
+use crate::conf::DomainMatcher;
+use crate::resolver::handler;
+use crate::conf::DnsProxy;
 
 pub fn serve(conf: DnsProxy, matcher: Arc<DomainMatcher>, pool: CpuPool) -> Result<(), Error> {
     let handler = handler::SmartResolver::new(matcher, &conf, pool)?;

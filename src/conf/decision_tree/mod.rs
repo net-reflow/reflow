@@ -9,12 +9,12 @@ use bytes::Bytes;
 
 mod text;
 
-use relay::route::TcpTrafficInfo;
+use crate::relay::route::TcpTrafficInfo;
 pub use self::text::var_name;
 pub use self::text::read_branch;
-use conf::Egress;
-use conf::main::RefVal;
-use util::BsDisp;
+use crate::conf::Egress;
+use crate::conf::main::RefVal;
+use crate::util::BsDisp;
 
 #[derive(Clone)]
 pub enum RoutingBranch {

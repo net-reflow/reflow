@@ -2,7 +2,7 @@ use futures::Future;
 use trust_dns_resolver::ResolverFuture;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::config::{NameServerConfig, Protocol};
-use conf::NameServerRemote;
+use crate::conf::NameServerRemote;
 
 pub fn create_resolver(rm: NameServerRemote) -> ResolverFuture {
     let (addr, p) = match rm {
