@@ -13,6 +13,7 @@ use self::radix_trie::Trie;
 use std::path;
 use util::BsDisp;
 use super::util::lines_without_comments;
+use std::time::Instant;
 
 pub struct DomainMatcher {
     domain_trie: Trie<Vec<u8>, Bytes>,
@@ -21,11 +22,15 @@ pub struct DomainMatcher {
 
 impl <'a> DomainMatcher {
     pub fn new(config: &path::Path) -> Result<DomainMatcher, Error> {
+        let now = Instant::now();
         let regions = find_domain_map_files(config)?;
         check_zone_name(regions.keys().collect())?;
+        let (trie, count) = build_domain_trie(&regions)?;
         let ruler = DomainMatcher {
-            domain_trie: build_domain_trie(&regions)?,
+            domain_trie: trie,
         };
+        let elapse = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        info!("Loaded {} domain name prefixes in {}ms", count, elapse);
         Ok(ruler)
     }
 
@@ -40,7 +45,8 @@ impl <'a> DomainMatcher {
 }
 
 fn build_domain_trie(regions: &HashMap<Bytes, Vec<DirEntry>>)
-                     -> io::Result<Trie<Vec<u8>, Bytes>> {
+                     -> io::Result<(Trie<Vec<u8>, Bytes>, u32)> {
+    let mut count: u32 = 0;
     let mut trie= Trie::new();
     for (region, conf) in regions {
         for entry in conf.iter() {
@@ -64,10 +70,11 @@ fn build_domain_trie(regions: &HashMap<Bytes, Vec<DirEntry>>)
                 }
                 let d = ds.join(&b'.');
                 trie.insert(d, region.clone());
+                count += 1;
             }
         }
     }
-    Ok(trie)
+    Ok((trie, count))
 }
 
 /// remove the last part of a domain

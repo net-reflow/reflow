@@ -15,6 +15,7 @@ use std::net::IpAddr;
 use super::util::lines_without_comments;
 use util::BsDisp;
 use std::net::Ipv6Addr;
+use std::time::Instant;
 
 pub struct IpMatcher {
     ip4_table: IpLookupTable<Ipv4Addr, Bytes>,
@@ -23,6 +24,8 @@ pub struct IpMatcher {
 
 impl IpMatcher {
     pub fn new(confpath: &path::Path) -> Result<IpMatcher, Error> {
+        let now = Instant::now();
+        let mut count: u32 = 0;
         let regions = find_addr_map_files(confpath)?;
 
         let mut i4table= IpLookupTable::new();
@@ -35,6 +38,7 @@ impl IpMatcher {
                     let (a,m) = try_parse_ip_network(line)
                         .map_err(|e| format_err!(
                     "Can't parse {} as IP network: {:?}", BsDisp::new(line), e))?;
+                    count += 1;
                     match a {
                         IpAddr::V6(a) => i6table.insert(a, m, region.clone()),
                         IpAddr::V4(a) => i4table.insert(a, m, region.clone()),
@@ -42,6 +46,8 @@ impl IpMatcher {
                 }
             }
         }
+        let elapse = now.elapsed().as_secs() * 1000 + now.elapsed().subsec_millis() as u64;
+        info!("Loaded {} ip prefixes in {}ms", count, elapse);
         Ok(IpMatcher{
             ip4_table: i4table,
             ip6_table: i6table,

@@ -30,7 +30,8 @@ fn find_map_files(path: &path::Path)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>
     let mut m = HashMap::new();
     for entry in fs::read_dir(path)? {
         let entry = entry?;
-        let ftype = entry.file_type()?;
+        let ftype = fs::metadata(entry.path())?.file_type();
+
         let n = entry.file_name();
         let name = n.to_str().expect("Bad encoding in filename");
         let nb: Bytes = name.into();
@@ -57,7 +58,8 @@ fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Bytes, Vec<Dir
     let mut region_map = HashMap::new();
     for entry in fs::read_dir(path)? {
         let file = entry?;
-        let ftype = file.file_type()?;
+        let m = fs::metadata(file.path())?;
+        let ftype = m.file_type();
 
         let f = file.file_name();
         let n = f.to_str().and_then(|x| extract_name(x, kind));
