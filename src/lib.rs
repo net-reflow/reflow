@@ -1,5 +1,6 @@
 #![feature(try_from)]
 #![feature(await_macro, async_await)]
+#![feature(futures_api)]
 
 extern crate byteorder;
 extern crate bytes;

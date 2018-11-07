@@ -20,18 +20,30 @@ use futures_cpupool::CpuPool;
 pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>, p: CpuPool)->Result<(), Error >{
     let l = listen(addr).map_err(|e| format_err!("Fail to listen on socks {:?}: {}", addr, e))?;
     let fut =l.for_each(move|s| {
-            let r1 = resolver.clone();
-            let rt1 = router.clone();
-            let p = p.clone();
-            let f =
-                s.and_then(move|(s,h)| read_address(s, h, r1.clone()))
-                .and_then(|(s,a)| handle_incoming_tcp(s, a, rt1, p))
-                    .map_err(|e| error!("error handling client {}", e));
-            tokio::spawn(f);
-            Ok(())
-        }).map_err(|e| error!("Listen error {:?}", e));
+        let r1 = resolver.clone();
+        let rt1 = router.clone();
+        let p = p.clone();
+        tokio::spawn_async(async move {
+            let _r = await!(handle_client(s, r1, rt1, p)).map_err(|e| {
+                error!("error handling client {}", e);
+            });
+        });
+        Ok(())
+    }).map_err(|e| error!("Listen error {:?}", e));
     tokio::spawn(fut);
     Ok(())
+}
+
+async fn handle_client<F>(
+    s: F,
+    res: Arc<ResolverFuture>,
+    rt: Arc<TcpRouter>,
+    p: CpuPool) -> Result<(), Error>
+    where F: Future<Item=(TcpStream, TcpRequestHeader), Error=Error>,
+{
+    let (s, h) = await!(s)?;
+    let (s, a) = await!(read_address(s, h, res.clone()))?;
+    await!(handle_incoming_tcp(s, a, rt, p))
 }
 
 fn read_address(stream:TcpStream, head: TcpRequestHeader, resolver: Arc<ResolverFuture>)-> impl Future<Item=(TcpStream, SocketAddr), Error=Error> {
