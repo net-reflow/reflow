@@ -1,14 +1,11 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 use failure::Error;
-use futures::Future;
 use tokio;
 use tokio::prelude::*;
 use trust_dns_resolver::ResolverFuture;
 
 use crate::relay::forwarding::handle_incoming_tcp;
-use futures::future::Either;
-use futures::future;
 use tokio::net::TcpStream;
 use crate::proto::socks::Command;
 use crate::proto::socks::Address;
@@ -51,28 +48,25 @@ async fn handle_client(
     p: CpuPool) -> Result<(), Error>
 {
     let (s, req) = await!(handle_socks_handshake(s))?;
-    let (s, a) = await!(read_address(s, req, res.clone()))?;
+    let a = await!(read_address(req, res.clone()))?;
     await!(handle_incoming_tcp(s, a, rt, p))
 }
 
-fn read_address(stream:TcpStream, head: TcpRequestHeader, resolver: Arc<ResolverFuture>)-> impl Future<Item=(TcpStream, SocketAddr), Error=Error> {
+async fn read_address(head: TcpRequestHeader, resolver: Arc<ResolverFuture>)
+    -> Result<SocketAddr, Error> {
     let c = head.command;
     if c != Command::TcpConnect {
-        return Either::A(future::err(SocksError::CommandUnSupport { cmd: c as u8}.into()));
+        return Err(SocksError::CommandUnSupport { cmd: c as u8}.into());
     }
     match head.address {
-        Address::SocketAddress(a) => return Either::A(future::ok((stream, a))),
+        Address::SocketAddress(a) => return Ok(a),
         Address::DomainNameAddress(domain, port) => {
-            Either::B(resolver.lookup_ip(&*domain)
-                .then(move |res| {
-                    match res {
-                        Ok(lookup) => lookup.iter().next().ok_or_else(||format_err!("No address found for domain {}", domain)),
-                        Err(e) => Err(format_err!("Error resolving {}: {}", domain, e)),
-                    }
-                })
-                .map(move |ip| {
-                (stream, SocketAddr::new(ip, port))
-            }))
+            let lookup = await!(resolver.lookup_ip(&*domain)).map_err(|e| {
+                format_err!("Error resolving {}: {}", domain, e)
+            })?;
+            let ip = lookup.iter().next()
+                .ok_or_else(||format_err!("No address found for domain {}", domain))?;
+            Ok(SocketAddr::new(ip, port))
         }
     }
 }
