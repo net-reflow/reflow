@@ -2,8 +2,9 @@ use crate::proto::socks::listen::listen;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use failure::Error;
-use futures::{Stream, Future};
+use futures::Future;
 use tokio;
+use tokio::prelude::*;
 use trust_dns_resolver::ResolverFuture;
 
 use crate::relay::forwarding::handle_incoming_tcp;
@@ -18,19 +19,27 @@ use crate::relay::TcpRouter;
 use futures_cpupool::CpuPool;
 
 pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>, p: CpuPool)->Result<(), Error >{
-    let l = listen(addr).map_err(|e| format_err!("Fail to listen on socks {:?}: {}", addr, e))?;
-    let fut =l.for_each(move|s| {
-        let r1 = resolver.clone();
-        let rt1 = router.clone();
-        let p = p.clone();
-        tokio::spawn_async(async move {
-            let _r = await!(handle_client(s, r1, rt1, p)).map_err(|e| {
-                error!("error handling client {}", e);
-            });
-        });
-        Ok(())
-    }).map_err(|e| error!("Listen error {:?}", e));
-    tokio::spawn(fut);
+    let mut l = listen(addr).map_err(|e| format_err!("Fail to listen on socks {:?}: {}", addr, e))?;
+    tokio::spawn_async(async move{
+        while let Some(s) = await!(l.next()) {
+            match s {
+                Ok(s) => {
+                    let r1 = resolver.clone();
+                    let rt1 = router.clone();
+                    let p = p.clone();
+                    tokio::spawn_async(async move {
+                        let _r = await!(handle_client(s, r1, rt1, p)).map_err(|e| {
+                            error!("error handling client {}", e);
+                        });
+                    });
+                }
+                Err(e) => {
+                    error!("error getting next socks client {}", e);
+                }
+            }
+
+        }
+    });
     Ok(())
 }
 
