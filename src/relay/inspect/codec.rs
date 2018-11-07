@@ -1,76 +1,32 @@
 //! implement header guessing
 
 use tokio::net::TcpStream;
-use tokio::io::AsyncRead;
 use bytes::BytesMut;
-use futures::Async;
-use futures::Future;
 use failure::Error;
+use tokio::prelude::*;
 
 use super::InspectedTcp;
 use crate::relay::inspect::parse::guess_bytes;
 
-/// Read the first bytes from the client
-/// combined with the SocketAddr already given
-/// choose a route according to rules configured
-pub struct ParseFirstPacket {
-    state: Option<ReadGuessHeadState>,
-}
+#[allow(unused_assignments)]
+pub async fn parse_first_packet(socket: TcpStream)-> Result<InspectedTcp, Error> {
+    let mut buf = BytesMut::new();
+    buf.resize(1024, 0);
+    let mut pos = 0;
+    let mut socket = socket;
+    // FIXME: in effect, it only reads the first packet
+    while pos < buf.len() {
+        let bs = await!(socket.read_async(&mut buf[pos..]))?;
+        pos += bs;
+        let guess = guess_bytes(&buf);
+        trace!("detected protocol {:?}", guess);
 
-struct  ReadGuessHeadState {
-    socket: TcpStream,
-    rd: BytesMut,
-}
-
-impl ParseFirstPacket {
-    pub fn new(socket: TcpStream) -> Self {
-        let buf = BytesMut::new();
-        let s = ReadGuessHeadState {
-            socket: socket,
-            rd: buf,
+        let tcp = InspectedTcp {
+            stream: socket,
+            bytes: buf,
+            protocol: guess,
         };
-        ParseFirstPacket { state: Some(s) }
+        return Ok(tcp);
     }
-}
-
-impl Future for ParseFirstPacket {
-    type Item = InspectedTcp;
-    type Error = Error;
-
-    fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
-        loop {
-            // First, read some data
-            match self.state {
-                Some(ReadGuessHeadState{ ref mut socket, ref mut rd}) => {
-                    rd.reserve(1024);
-                    try_ready!(socket.read_buf(rd));
-                }
-                None => panic!("poll after finish"),
-            }
-
-            let guess = {
-                match self.state {
-                    Some(ReadGuessHeadState { socket: ref _s, ref rd }) => {
-                        guess_bytes(&rd)
-                    }
-                    _ => panic!("poll after finish"),
-                }
-            };
-
-            {
-                trace!("detected protocol {:?}", guess);
-                let s = self.state.take().unwrap();
-                let socket = s.socket;
-                let line = s.rd;
-
-                let tcp = InspectedTcp {
-                    stream: socket,
-                    bytes: line,
-                    protocol: guess,
-                };
-                // Return the line
-                return Ok(Async::Ready(tcp));
-            }
-        }
-    }
+    Err(format_err!("Unidentified protocol"))
 }

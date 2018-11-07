@@ -5,7 +5,7 @@ use bytes::BytesMut;
 
 mod codec;
 mod parse;
-pub use self::codec::ParseFirstPacket;
+pub use self::codec::parse_first_packet;
 pub use self::parse::TcpProtocol;
 
 pub struct InspectedTcp {

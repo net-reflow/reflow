@@ -21,7 +21,7 @@ use std::net::IpAddr;
 use std::net;
 use crate::conf::RoutingAction;
 use crate::conf::EgressAddr;
-use crate::relay::inspect::ParseFirstPacket;
+use crate::relay::inspect::parse_first_packet;
 use crate::relay::inspect::TcpProtocol;
 
 pub const TIMEOUT: u64 = 10;
@@ -32,7 +32,7 @@ pub async fn handle_incoming_tcp(
     router: Arc<TcpRouter>,
     pool: CpuPool,
 )-> Result<(), Error> {
-    let tcp = await!(ParseFirstPacket::new(client_stream))?;
+    let tcp = await!(parse_first_packet(client_stream))?;
     if let Some(r) = router.route(a, &tcp.protocol) {
         let client_stream = tcp.stream;
         await!(carry_out(
