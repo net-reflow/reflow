@@ -1,4 +1,5 @@
 #![feature(try_from)]
+#![feature(await_macro, async_await)]
 
 extern crate byteorder;
 extern crate bytes;
@@ -15,6 +16,7 @@ extern crate net2;
 extern crate nom;
 extern crate socks;
 #[macro_use] extern crate structopt;
+#[macro_use]
 extern crate tokio;
 #[macro_use]
 extern crate tokio_io;
