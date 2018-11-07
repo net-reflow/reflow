@@ -30,29 +30,27 @@ use crate::relay::inspect::TcpProtocol;
 
 pub const TIMEOUT: u64 = 10;
 
-pub fn handle_incoming_tcp(
+pub async fn handle_incoming_tcp(
     client_stream: TcpStream,
     a: SocketAddr,
     router: Arc<TcpRouter>,
     pool: CpuPool,
-)-> impl Future<Item=(), Error=Error> {
-    ParseFirstPacket::new(client_stream)
-        .and_then(move|tcp| {
-            let r = router.route(a, &tcp.protocol);
-            let client_stream = tcp.stream;
-            let p = client_stream.peer_addr();
-            if let Some(r) = r {
-                Either::A(carry_out(
-                    tcp.bytes.freeze(), a, r.clone(), client_stream, pool,
-                    tcp.protocol,
-                ))
-            } else {
-                Either::B(future::err(format_err!(
+)-> Result<(), Error> {
+    let tcp = await!(ParseFirstPacket::new(client_stream))?;
+    if let Some(r) = router.route(a, &tcp.protocol) {
+        let client_stream = tcp.stream;
+        await!(carry_out(
+                tcp.bytes.freeze(), a, r.clone(), client_stream, pool,
+                tcp.protocol,
+        ))?;
+    } else {
+        let p = tcp.stream.peer_addr();
+        return Err(format_err!(
                 "No matching rule for protocol {:?} from client {:?} to addr {:?}",
                 &tcp.protocol, p, a
-                )))
-            }
-    })
+        ));
+    }
+    Ok(())
 }
 
 fn carry_out(
