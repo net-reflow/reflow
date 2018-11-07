@@ -57,30 +57,25 @@ async fn carry_out(
     p: CpuPool,
     pr: TcpProtocol,
 )-> Result<(), Error> {
-    let p1 = pr.clone();
-    let p2 = pr.clone();
-    let p3 = pr.clone();
-    let p4= pr.clone();
-    let p5 = pr;
     let s = match r {
         RoutingAction::Reset => return Ok(()),
         RoutingAction::Direct => {
             await!(tokio::net::TcpStream::connect(&a))
-                .map_err(move |e| format_err!("Error making direct {:?} connection to {:?}: {}", p1, a, e))
+                .map_err(|e| format_err!("Error making direct {:?} connection to {:?}: {}", &pr, a, e))
         },
         RoutingAction::Named(ref g) => match g.val().addr() {
             EgressAddr::From(ip) => {
                 let x = bind_tcp_socket(ip)?;
                 await!(tokio::net::TcpStream::connect_std(x, &a, &Handle::current()))
-                    .map_err(move |e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", p1, a, ip, e))
+                    .map_err(|e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", &pr, a, ip, e))
             },
             EgressAddr::Socks5(x)=> {
                 let ss = await!(p.spawn_fn(move || -> io::Result<Socks5Stream> {
                     let ss = Socks5Stream::connect(x, a)?;
                     ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
                     Ok(ss)
-                })).map_err(move |e| {
-                    format_err!("Error making {:?} connection to {:?} through {:?}: {}", p3, a, x, e)
+                })).map_err(|e| {
+                    format_err!("Error making {:?} connection to {:?} through {:?}: {}", &pr, a, x, e)
                 })?;
                 let ts = ss.into_inner();
                 TcpStream::from_std(ts, &Handle::current()).map_err(|e| e.into())
@@ -88,13 +83,13 @@ async fn carry_out(
         }
     }?;
     let (stream, _) = await!(write_all(s, data))
-        .map_err(move |e| {
-            format_err!("Error sending {:?} header bytes to {:?}: {}", p2, a, e)
+        .map_err(|e| {
+            format_err!("Error sending {:?} header bytes to {:?}: {}", &pr, a, e)
         })?;
     let (ur, uw) = stream.split();
     let (cr, cw) = client_stream.split();
-    run_copy(ur, cw, a, p4, r.clone(), true);
-    run_copy(cr, uw, a, p5, r, false);
+    run_copy(ur, cw, a, pr.clone(), r.clone(), true);
+    run_copy(cr, uw, a, pr, r, false);
     Ok(())
 }
 
