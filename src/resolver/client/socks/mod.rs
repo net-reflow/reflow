@@ -14,8 +14,6 @@ use tokio_io::io as tio;
 
 use super::TIMEOUT;
 
-use super::super::dnsclient::flat_result_future;
-use futures::future::Either;
 use crate::conf::NameServerRemote;
 
 /// Do dns queries through a socks5 proxy
@@ -42,37 +40,33 @@ impl SockGetterAsync {
         sga
     }
 
-    pub fn get(&self, message: Vec<u8>) -> impl Future<Item=Vec<u8>, Error=io::Error> + Send {
+    pub async fn get(&self, message: Vec<u8>) -> io::Result<Vec<u8>> {
         match self.addr {
             NameServerRemote::Tcp(_a) => {
-                Either::A(flat_result_future(self.get_tcp(message)))
+                await!(self.get_tcp(message)?)
             }
             NameServerRemote::Udp(_a) => {
-                Either::B(flat_result_future(self.get_udp(message)))
+                await!(self.get_udp(message))
             }
         }
     }
 
-    pub fn get_udp(&self, data: Vec<u8>)
-                   -> io::Result<impl Future<Item=Vec<u8>, Error=io::Error> + Send> {
+    pub async fn get_udp(&self, data: Vec<u8>)
+                   -> io::Result<Vec<u8>> {
         let socks5 = Socks5Datagram::bind(self.proxy, "0.0.0.0:0")?;
         socks5.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
         let addr = ns_sock_addr(&self.addr);
-        let sendf = self.pool.spawn_fn(move || -> io::Result<Socks5Datagram> {
+        let socks5 = await!(self.pool.spawn_fn(move || -> io::Result<Socks5Datagram> {
             let _n_b = socks5.send_to(&data, addr)?;
             Ok(socks5)
-        });
-        let pool = self.pool.clone();
-        let recvf =
-            sendf.and_then(move |s| {
-                pool.spawn_fn(move || -> io::Result<Vec<u8>> {
-                    let mut buf = vec![0; 998];
-                    let (n, _addr) = s.recv_from(&mut buf)?;
-                    buf.truncate(n);
-                    Ok(buf)
-                })
-            });
-        Ok(recvf)
+        }))?;
+        let recv = await!(self.pool.spawn_fn(move || -> io::Result<Vec<u8>> {
+            let mut buf = vec![0; 998];
+            let (n, _addr) = socks5.recv_from(&mut buf)?;
+            buf.truncate(n);
+            Ok(buf)
+        }))?;
+        Ok(recv)
     }
 
     pub fn get_tcp(&self, data: Vec<u8>)
