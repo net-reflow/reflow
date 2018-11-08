@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use failure::Error;
-use futures::Future;
-use futures::future;
 
 use trust_dns::op::Message;
 use trust_dns::rr::LowerName;
@@ -14,8 +12,6 @@ use trust_dns::serialize::binary::BinDecoder;
 use trust_dns::serialize::binary::BinDecodable;
 use futures_cpupool::CpuPool;
 use crate::conf::DnsProxy;
-
-type SF<V, E> = Future<Item=V, Error=E> + Send;
 
 pub struct SmartResolver {
     region_resolver: Vec<(Bytes, DnsClient)>,
@@ -39,14 +35,14 @@ impl SmartResolver {
         })
     }
 
-    pub fn handle_future(&self, buffer: &[u8]) -> Box<SF<Vec<u8>, Error>> {
+    pub async fn handle_future<'a>(&'a self, buffer: &'a[u8]) -> Result<Vec<u8>, Error> {
         let mut decoder = BinDecoder::new(&buffer);
         let message = Message::read(&mut decoder).expect("msg deco err");
 
         let name = {
             let queries = message.queries();
             if queries.len() != 1 {
-                return Box::new(future::err(format_err!("more than 1 queries in a message: {:?}", message)));
+                return Err(format_err!("more than 1 queries in a message: {:?}", message));
             }
             let q = &queries[0];
             LowerName::new(q.name())
@@ -54,8 +50,8 @@ impl SmartResolver {
 
         let client = self.choose_resolver(&name);
         debug!("Dns query {:?} using {:?}", name, client);
-        Box::new(client.resolve(buffer.to_vec())
-            .map_err(|e| format_err!("resolve error: {:?}", e)))
+        await!(client.resolve(buffer.to_vec()))
+            .map_err(|e| format_err!("resolve error: {:?}", e))
     }
 
     fn choose_resolver(&self,name: &LowerName)-> &DnsClient {

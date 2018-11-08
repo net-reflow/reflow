@@ -15,7 +15,6 @@ use std::time::Duration;
 use crate::resolver::client::TIMEOUT;
 use tokio::reactor::Handle;
 use futures::future::Either;
-use crate::util::Either3;
 use crate::conf::NameServer;
 use crate::conf::NameServerRemote;
 
@@ -47,20 +46,16 @@ impl DnsClient {
         }
     }
 
-    pub fn resolve(&self, data: Vec<u8>)
-        -> impl Future<Item=Vec<u8>, Error=io::Error> + Send {
+    pub async fn resolve(&self, data: Vec<u8>)
+        -> io::Result<Vec<u8>> {
         return match self {
             DnsClient::ViaSocks5(s) => {
-                let f = s.get(data);
-                Either3::A(f)
+                await!(s.get(data))
             }
             // FIXME these always use udp even when tcp is configured
-            DnsClient::Direct(s) => {
-                let f = udp_get(s, data);
-                Either3::B(flat_result_future(f))
-            }
-            DnsClient::DirectBind(s, i) => Either3::C(udp_bind_get(*s, *i, data))
-        }
+            DnsClient::Direct(s) => await!(udp_get(s, data)),
+            DnsClient::DirectBind(s, i) => await!(udp_bind_get(*s, *i, data))
+        };
     }
 }
 
