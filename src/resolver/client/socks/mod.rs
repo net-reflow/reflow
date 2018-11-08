@@ -3,7 +3,6 @@ use std::fmt;
 use std::net::SocketAddr;
 
 use byteorder::{BigEndian,WriteBytesExt,ReadBytesExt};
-use futures::{Future};
 use socks::Socks5Datagram;
 use socks::Socks5Stream;
 use std::time::Duration;
@@ -43,7 +42,7 @@ impl SockGetterAsync {
     pub async fn get(&self, message: Vec<u8>) -> io::Result<Vec<u8>> {
         match self.addr {
             NameServerRemote::Tcp(_a) => {
-                await!(self.get_tcp(message)?)
+                await!(self.get_tcp(message))
             }
             NameServerRemote::Udp(_a) => {
                 await!(self.get_udp(message))
@@ -69,51 +68,36 @@ impl SockGetterAsync {
         Ok(recv)
     }
 
-    pub fn get_tcp(&self, data: Vec<u8>)
-                   -> io::Result<impl Future<Item=Vec<u8>, Error=io::Error> + Send> {
+    pub async fn get_tcp(&self, data: Vec<u8>)
+                   -> io::Result<Vec<u8>> {
         let proxy = self.proxy.clone();
         let target = ns_sock_addr(&self.addr);
-        let connectf = self.pool.spawn_fn(move || -> io::Result<Socks5Stream> {
+        let socks = await!(self.pool.spawn_fn(move || -> io::Result<Socks5Stream> {
             let ss = Socks5Stream::connect(proxy, target)?;
             ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
             Ok(ss)
-        });
-        let streamf = connectf.and_then(|ss| {
-            let ts = ss.into_inner();
-            TcpStream::from_std(ts, &Handle::current())
-        });
+        }))?;
+        let ts = socks.into_inner();
+        let stream = TcpStream::from_std(ts, &Handle::current())?;
         let len = data.len() as u16;
         let mut lens = [0u8; 2];
         lens.as_mut().write_u16::<BigEndian>(len).expect("byteorder");
-        debug!("Sending length {}, {:?}", len, lens);
-        let rep =
-            streamf.and_then(move |ts| tio::write_all(ts, lens))
-            .and_then(move |(ts, _b)| {
-                tio::write_all(ts, data)
-            })
-            .and_then(|(ts, buf)| {
-                let lb = [0u8; 2];
-                tio::read_exact(ts,lb).map(move |(s, b)| {
-                    debug!("Read reply length {:?}", b);
-                    let mut rdr = io::Cursor::new(b);
-                    let len = rdr.read_u16::<BigEndian>().expect("read u16");
-                    debug!("Reply length is {}", len);
-                    (s, len, buf)
-                })
-            })
-            .and_then(|(ts, len, mut buf)| {
-                buf.resize(len as usize, 0);
-                debug!("Resized buf size to {}", buf.len());
-                tio::read_exact(ts, buf)
-                    .map(|(_s, buf)| buf)
-                    .map_err(move |e| {
-                        warn!("Error reading {} bytes: {:?}", len, e);
-                        e
-                    })
-            })
-
-        ;
-        Ok(rep)
+        trace!("Sending length {}, {:?}", len, lens);
+        let (ts, _b) = await!(tio::write_all(stream, lens))?;
+        let (ts, mut buf) = await!(tio::write_all(ts, data))?;
+        let lb = [0u8; 2];
+        let (ts, b) = await!(tio::read_exact(ts, lb))?;
+        trace!("Read reply length {:?}", b);
+        let mut rdr = io::Cursor::new(b);
+        let len = rdr.read_u16::<BigEndian>().expect("read u16");
+        trace!("Reply length is {}", len);
+        buf.resize(len as usize, 0);
+        trace!("Resized buf size to {}", buf.len());
+        let (_s, buf) = await!(tio::read_exact(ts, buf)).map_err(|e| {
+            warn!("Error reading {} bytes: {:?}", len, e);
+            e
+        })?;
+        Ok(buf)
     }
 }
 
