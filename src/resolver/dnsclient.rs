@@ -1,8 +1,5 @@
 use std::net::SocketAddr;
 
-use futures::Future;
-use futures::future;
-
 use super::client::socks::SockGetterAsync;
 use super::client::udp::udp_get;
 use futures_cpupool::CpuPool;
@@ -14,7 +11,6 @@ use tokio::net::UdpSocket;
 use std::time::Duration;
 use crate::resolver::client::TIMEOUT;
 use tokio::reactor::Handle;
-use futures::future::Either;
 use crate::conf::NameServer;
 use crate::conf::NameServerRemote;
 
@@ -70,35 +66,13 @@ fn ns_sock_addr(ns: &NameServerRemote) -> SocketAddr {
     }
 }
 
-
-pub fn flat_result_future<E,F,FT,FE>(rf: Result<F,E>)->impl Future<Item=FT, Error=FE>+Send
-    where F: Future<Item=FT,Error=FE> + Send + 'static,
-          E: Into<FE>,
-          FT: Send + 'static,
-          FE: Send + 'static{
-    match rf {
-        Ok(f) => Either::A(f),
-        Err(e) => {
-            let e: FE = e.into();
-            Either::B(future::err(e))
-        }
-    }
-}
-
-pub fn udp_bind_get(addr: SocketAddr, ip: IpAddr, data: Vec<u8>)
-               -> impl Future<Item=Vec<u8>,Error=io::Error> + Send {
-    use futures::IntoFuture;
-    StdUdpSocket::bind(SocketAddr::from((ip, 0)))
-        .into_future()
-        .and_then(|s| {
-            let _ = s.set_read_timeout(Some(Duration::from_secs(TIMEOUT)));
-            Ok(s)
-        })
-        .and_then(|s| UdpSocket::from_std(s, &Handle::current()))
-        .and_then(move|s| s.send_dgram(data, &addr))
-        .and_then(|(s, _b)| {
-            let buf = vec![0; 998];
-            s.recv_dgram(buf)
-        })
-        .and_then(|(_s, b, nb, _a)| Ok(b[..nb].into()))
+pub async fn udp_bind_get(addr: SocketAddr, ip: IpAddr, data: Vec<u8>)
+               -> io::Result<Vec<u8>> {
+    let s = StdUdpSocket::bind(SocketAddr::from((ip, 0)))?;
+    s.set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
+    let s = UdpSocket::from_std(s, &Handle::current())?;
+    let (s, _b) = await!(s.send_dgram(data, &addr))?;
+    let buf = vec![0; 998];
+    let (_s, b, nb, _a) = await!(s.recv_dgram(buf))?;
+    Ok(b[..nb].into())
 }
