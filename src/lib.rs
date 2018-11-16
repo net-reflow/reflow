@@ -19,7 +19,6 @@ extern crate socks;
 #[macro_use] extern crate structopt;
 #[macro_use]
 extern crate tokio;
-#[macro_use]
 extern crate tokio_io;
 extern crate treebitmap;
 extern crate trust_dns;

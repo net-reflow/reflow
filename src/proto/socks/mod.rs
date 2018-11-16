@@ -2,22 +2,19 @@
 //!
 //! Implements [SOCKS Protocol Version 5](https://www.ietf.org/rfc/rfc1928.txt) proxy protocol
 
-use std::convert::From;
 use std::convert::TryInto;
 use std::fmt::{self, Debug, Formatter};
-use std::io::{self, Cursor, Read};
+use std::io::{self};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::net::Shutdown;
 use std::u8;
 
-use byteorder::{BigEndian, ReadBytesExt};
-use bytes::{Bytes, BytesMut, IntoBuf};
+use byteorder::{BigEndian};
 
 use failure::Error;
-use futures::{Async, Future, Poll};
+use futures::{Future};
 
 use tokio_io::io::read_exact;
-use tokio_io::{AsyncRead};
 
 mod consts;
 pub mod listen;
@@ -54,10 +51,6 @@ pub enum Address {
 }
 
 impl Address {
-    #[inline]
-    pub fn read_from<R: AsyncRead>(stream: R) -> ReadAddress<R> {
-        ReadAddress::new(stream)
-    }
 
     fn len(&self) -> usize {
         match *self {
@@ -75,18 +68,6 @@ impl Debug for Address {
             Address::SocketAddress(ref addr) => write!(f, "{}", addr),
             Address::DomainNameAddress(ref addr, ref port) => write!(f, "{}:{}", addr, port),
         }
-    }
-}
-
-impl From<SocketAddr> for Address {
-    fn from(s: SocketAddr) -> Address {
-        Address::SocketAddress(s)
-    }
-}
-
-impl From<(String, u16)> for Address {
-    fn from((dn, port): (String, u16)) -> Address {
-        Address::DomainNameAddress(dn, port)
     }
 }
 
@@ -143,182 +124,6 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, E
             let addr = Address::DomainNameAddress(addr, port);
             Ok(addr)
         }
-    }
-}
-
-pub struct ReadAddress<R>
-    where R: AsyncRead
-{
-    reader: Option<R>,
-    state: ReadAddressState,
-    buf: Option<BytesMut>,
-    already_read: usize,
-}
-
-enum ReadAddressState {
-    ReadingType,
-    ReadingIpv4,
-    ReadingIpv6,
-    ReadingDomainNameLength,
-    ReadingDomainName,
-}
-
-impl<R> Future for ReadAddress<R>
-    where R: AsyncRead
-{
-    type Item = (R, Address);
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        debug_assert!(self.reader.is_some());
-
-        loop {
-            match self.state {
-                ReadAddressState::ReadingType => {
-                    try_ready!(self.read_addr_type());
-                }
-                ReadAddressState::ReadingIpv4 => {
-                    let addr = try_ready!(self.read_ipv4());
-                    let reader = self.reader.take().unwrap();
-                    return Ok((reader, addr).into());
-                }
-                ReadAddressState::ReadingIpv6 => {
-                    let addr = try_ready!(self.read_ipv6());
-                    let reader = self.reader.take().unwrap();
-                    return Ok((reader, addr).into());
-                }
-                ReadAddressState::ReadingDomainNameLength => {
-                    try_ready!(self.read_domain_name_length());
-                }
-                ReadAddressState::ReadingDomainName => {
-                    let addr = try_ready!(self.read_domain_name());
-                    let reader = self.reader.take().unwrap();
-                    return Ok((reader, addr).into());
-                }
-            };
-        }
-    }
-}
-
-impl<R> ReadAddress<R>
-    where R: AsyncRead
-{
-    fn new(r: R) -> ReadAddress<R> {
-        ReadAddress { reader: Some(r),
-            state: ReadAddressState::ReadingType,
-            buf: None,
-            already_read: 0, }
-    }
-
-    fn read_addr_type(&mut self) -> Poll<(), Error> {
-        let b = {
-            let r = self.reader.as_mut().unwrap();
-            r.read_u8()
-        };
-        let addr_type = try_nb!(b);
-        match addr_type.try_into()? {
-            consts::AddrType::IPV4 => {
-                self.state = ReadAddressState::ReadingIpv4;
-                self.alloc_buf(6);
-            }
-            consts::AddrType::IPV6 => {
-                self.state = ReadAddressState::ReadingIpv6;
-                self.alloc_buf(18);
-            }
-            consts::AddrType::DomainName => {
-                self.state = ReadAddressState::ReadingDomainNameLength;
-            }
-        };
-
-        Ok(Async::Ready(()))
-    }
-
-    fn read_ipv4(&mut self) -> Poll<Address, Error> {
-        try_ready!(self.read_data());
-        let mut stream: Cursor<Bytes> = self.freeze_buf().into_buf();
-        let v4addr = Ipv4Addr::new(stream.read_u8()?,
-                                   stream.read_u8()?,
-                                   stream.read_u8()?,
-                                   stream.read_u8()?);
-        let port = stream.read_u16::<BigEndian>()?;
-        let addr = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(v4addr, port)));
-        Ok(Async::Ready(addr))
-    }
-
-    fn read_ipv6(&mut self) -> Poll<Address, Error> {
-        try_ready!(self.read_data());
-        let mut stream: Cursor<Bytes> = self.freeze_buf().into_buf();
-        let v6addr = Ipv6Addr::new(stream.read_u16::<BigEndian>()?,
-                                   stream.read_u16::<BigEndian>()?,
-                                   stream.read_u16::<BigEndian>()?,
-                                   stream.read_u16::<BigEndian>()?,
-                                   stream.read_u16::<BigEndian>()?,
-                                   stream.read_u16::<BigEndian>()?,
-                                   stream.read_u16::<BigEndian>()?,
-                                   stream.read_u16::<BigEndian>()?);
-        let port = stream.read_u16::<BigEndian>()?;
-
-        let addr = Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));
-        Ok(Async::Ready(addr))
-    }
-
-    fn read_domain_name_length(&mut self) -> Poll<(), Error> {
-        let length = try_nb!(self.reader.as_mut().unwrap().read_u8());
-        self.state = ReadAddressState::ReadingDomainName;
-        self.alloc_buf(length as usize + 2);
-        Ok(Async::Ready(()))
-    }
-
-    fn read_domain_name(&mut self) -> Poll<Address, Error> {
-        try_ready!(self.read_data());
-        let buf = self.freeze_buf();
-        let addr_len = buf.len() - 2;
-        let mut stream: Cursor<Bytes> = buf.into_buf();
-
-        let mut raw_addr = Vec::with_capacity(addr_len);
-        unsafe {
-            raw_addr.set_len(addr_len);
-        }
-        stream.read_exact(&mut raw_addr)?;
-
-        let addr = match String::from_utf8(raw_addr) {
-            Ok(addr) => addr,
-            Err(..) => return Err(SocksError::InvalidDomainEncoding.into()),
-        };
-        let port = stream.read_u16::<BigEndian>()?;
-
-        let addr = Address::DomainNameAddress(addr, port);
-        Ok(Async::Ready(addr))
-    }
-
-    fn alloc_buf(&mut self, size: usize) {
-        let mut buf = BytesMut::with_capacity(size);
-        unsafe {
-            buf.set_len(size);
-        }
-        self.buf = Some(buf);
-    }
-
-    fn read_data(&mut self) -> Poll<(), io::Error> {
-        let buf = self.buf.as_mut().unwrap();
-
-        while self.already_read < buf.len() {
-            match self.reader.as_mut().unwrap().read(&mut buf[self.already_read..]) {
-                Ok(0) => {
-                    let err = io::Error::new(io::ErrorKind::Other, "Unexpected EOF");
-                    return Err(err);
-                }
-                Ok(n) => self.already_read += n,
-                Err(err) => return Err(err),
-            }
-        }
-
-        Ok(Async::Ready(()))
-    }
-
-    fn freeze_buf(&mut self) -> Bytes {
-        let buf = self.buf.take().unwrap();
-        buf.freeze()
     }
 }
 
