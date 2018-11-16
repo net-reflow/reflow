@@ -28,6 +28,7 @@ pub use self::consts::Command;
 
 use self::consts::Reply;
 use tokio::net::TcpStream;
+use byteorder::ByteOrder;
 
 #[derive(Debug, Fail)]
 pub enum SocksError {
@@ -86,6 +87,62 @@ impl From<SocketAddr> for Address {
 impl From<(String, u16)> for Address {
     fn from((dn, port): (String, u16)) -> Address {
         Address::DomainNameAddress(dn, port)
+    }
+}
+
+async fn read_u8<R: AsyncRead>(stream: R) -> io::Result<u8> {
+    let (_s, b) = await!(read_exact(stream, [0u8; 1]))?;
+    Ok(b[0])
+}
+
+async fn read_u16<R: AsyncRead>(stream: R) -> io::Result<u16> {
+    let (_s, b) = await!(read_exact(stream, [0u8; 2]))?;
+    Ok(BigEndian::read_u16(&b))
+}
+
+pub async fn read_socks_address<R: AsyncRead>(mut stream: R) -> Result<Address, Error> {
+    let addr_type: u8 = await!(read_u8(&mut stream))?;
+    match addr_type.try_into()? {
+        consts::AddrType::IPV4 => {
+            let v4addr = Ipv4Addr::new(await!(read_u8(&mut stream))?,
+                                       await!(read_u8(&mut stream))?,
+                                       await!(read_u8(&mut stream))?,
+                                       await!(read_u8(&mut stream))?);
+            let port = await!(read_u16(stream))?;
+            let addr = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(v4addr, port)));
+            Ok(addr)
+        }
+        consts::AddrType::IPV6 => {
+            let v6addr = Ipv6Addr::new(await!(read_u16(&mut stream))?,
+                                       await!(read_u16(&mut stream))?,
+                                       await!(read_u16(&mut stream))?,
+                                       await!(read_u16(&mut stream))?,
+                                       await!(read_u16(&mut stream))?,
+                                       await!(read_u16(&mut stream))?,
+                                       await!(read_u16(&mut stream))?,
+                                       await!(read_u16(&mut stream))?);
+            let port = await!(read_u16(stream))?;
+
+            let addr = Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));
+            Ok(addr)
+        }
+        consts::AddrType::DomainName => {
+            // domain and port
+            let length = await!(read_u8(&mut stream))?;
+            let addr_len = length - 2;
+            let mut raw_addr= vec![];
+            raw_addr.resize(addr_len as usize, 0);
+            await!(read_exact(&mut stream, &mut raw_addr))?;
+
+            let addr = match String::from_utf8(raw_addr) {
+                Ok(addr) => addr,
+                Err(..) => return Err(SocksError::InvalidDomainEncoding.into()),
+            };
+            let port = await!(read_u16(stream))?;
+
+            let addr = Address::DomainNameAddress(addr, port);
+            Ok(addr)
+        }
     }
 }
 

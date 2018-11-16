@@ -82,7 +82,7 @@ pub async fn read_command_async(mut s: TcpStream, peer: SocketAddr)
     }
     let cmd = cmd.unwrap();
     await!(write_command_response_async(&mut s, Reply::SUCCEEDED, peer))?;
-    let (s, address) = await!(Address::read_from(s))?;
+    let (_s, address) = await!(Address::read_from(&mut s))?;
     let header = TcpRequestHeader { command: cmd, address };
     Ok((s, header))
 }
