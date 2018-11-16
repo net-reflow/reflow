@@ -90,37 +90,37 @@ impl From<(String, u16)> for Address {
     }
 }
 
-async fn read_u8<R: AsyncRead>(stream: R) -> io::Result<u8> {
+async fn read_u8(stream: &mut TcpStream) -> io::Result<u8> {
     let (_s, b) = await!(read_exact(stream, [0u8; 1]))?;
     Ok(b[0])
 }
 
-async fn read_u16<R: AsyncRead>(stream: R) -> io::Result<u16> {
+async fn read_u16(stream: &mut TcpStream) -> io::Result<u16> {
     let (_s, b) = await!(read_exact(stream, [0u8; 2]))?;
     Ok(BigEndian::read_u16(&b))
 }
 
-pub async fn read_socks_address<R: AsyncRead>(mut stream: R) -> Result<Address, Error> {
-    let addr_type: u8 = await!(read_u8(&mut stream))?;
+pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, Error> {
+    let addr_type: u8 = await!(read_u8(stream))?;
     match addr_type.try_into()? {
         consts::AddrType::IPV4 => {
-            let v4addr = Ipv4Addr::new(await!(read_u8(&mut stream))?,
-                                       await!(read_u8(&mut stream))?,
-                                       await!(read_u8(&mut stream))?,
-                                       await!(read_u8(&mut stream))?);
+            let v4addr = Ipv4Addr::new(await!(read_u8(stream))?,
+                                       await!(read_u8(stream))?,
+                                       await!(read_u8(stream))?,
+                                       await!(read_u8(stream))?);
             let port = await!(read_u16(stream))?;
             let addr = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(v4addr, port)));
             Ok(addr)
         }
         consts::AddrType::IPV6 => {
-            let v6addr = Ipv6Addr::new(await!(read_u16(&mut stream))?,
-                                       await!(read_u16(&mut stream))?,
-                                       await!(read_u16(&mut stream))?,
-                                       await!(read_u16(&mut stream))?,
-                                       await!(read_u16(&mut stream))?,
-                                       await!(read_u16(&mut stream))?,
-                                       await!(read_u16(&mut stream))?,
-                                       await!(read_u16(&mut stream))?);
+            let v6addr = Ipv6Addr::new(await!(read_u16(stream))?,
+                                       await!(read_u16(stream))?,
+                                       await!(read_u16(stream))?,
+                                       await!(read_u16(stream))?,
+                                       await!(read_u16(stream))?,
+                                       await!(read_u16(stream))?,
+                                       await!(read_u16(stream))?,
+                                       await!(read_u16(stream))?);
             let port = await!(read_u16(stream))?;
 
             let addr = Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));
@@ -128,7 +128,7 @@ pub async fn read_socks_address<R: AsyncRead>(mut stream: R) -> Result<Address, 
         }
         consts::AddrType::DomainName => {
             // domain and port
-            let length = await!(read_u8(&mut stream))?;
+            let length = await!(read_u8(stream))?;
             let addr_len = length - 2;
             let mut raw_addr= vec![];
             raw_addr.resize(addr_len as usize, 0);

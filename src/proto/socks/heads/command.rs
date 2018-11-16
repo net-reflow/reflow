@@ -17,6 +17,7 @@ use bytes::BufMut;
 use crate::proto::socks::consts::Reply;
 use crate::proto::socks::TcpResponseHeader;
 use super::super::codec::write_address;
+use crate::proto::socks::read_socks_address;
 
 pub fn read_command(r: TcpStream, peer: SocketAddr)
     -> impl Future<Item = (TcpStream, TcpRequestHeader), Error = Error> + Send
@@ -82,7 +83,7 @@ pub async fn read_command_async(mut s: TcpStream, peer: SocketAddr)
     }
     let cmd = cmd.unwrap();
     await!(write_command_response_async(&mut s, Reply::SUCCEEDED, peer))?;
-    let (_s, address) = await!(Address::read_from(&mut s))?;
+    let address = await!(read_socks_address(&mut s))?;
     let header = TcpRequestHeader { command: cmd, address };
     Ok((s, header))
 }
