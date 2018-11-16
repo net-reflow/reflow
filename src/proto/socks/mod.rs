@@ -12,8 +12,6 @@ use std::u8;
 use byteorder::{BigEndian};
 
 use failure::Error;
-use futures::{Future};
-
 use tokio_io::io::read_exact;
 
 mod consts;
@@ -190,25 +188,18 @@ pub struct HandshakeRequest {
 }
 
 /// Read from a reader
-pub fn read_handshake_request(s: TcpStream)
-    -> impl Future<Item = (TcpStream, HandshakeRequest), Error = Error>  {
-    read_exact(s, [0u8, 0u8])
-        .map_err(|e| e.into())
-        .and_then(|(r, buf)| {
-        let ver = buf[0];
-        let nmet = buf[1];
+pub async fn read_handshake_request(mut s: &mut TcpStream)
+    -> Result<HandshakeRequest, Error>  {
+    let (_s, buf) = await!(read_exact(&mut s, [0u8, 0u8]))?;
+    let ver = buf[0];
+    let nmet = buf[1];
 
-        if ver != consts::SOCKS5_VERSION {
-            r.shutdown(Shutdown::Both)?;
-            return Err(SocksError::SocksVersionNoSupport {ver: ver}.into());
-        }
-
-        Ok((r, nmet))
-    })
-        .and_then(|(r, nmet)| {
-            read_exact(r, vec![0u8; nmet as usize]).map_err(|e| e.into())
-        })
-        .and_then(|(r, methods)| Ok((r, HandshakeRequest { methods: methods })))
+    if ver != consts::SOCKS5_VERSION {
+        s.shutdown(Shutdown::Both)?;
+        return Err(SocksError::SocksVersionNoSupport {ver: ver}.into());
+    }
+    let (_s, methods) = await!(read_exact(&mut s, vec![0u8; nmet as usize]))?;
+    Ok(HandshakeRequest { methods: methods })
 }
 
 /// SOCKS5 handshake response packet

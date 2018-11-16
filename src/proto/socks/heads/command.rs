@@ -1,5 +1,4 @@
 use std::convert::TryInto;
-use futures::Future;
 use failure::Error;
 use tokio_io::io::read_exact;
 use tokio_io::io::write_all;
@@ -39,17 +38,6 @@ pub async fn read_command_async(mut s: TcpStream, peer: SocketAddr)
     let address = await!(read_socks_address(&mut s))?;
     let header = TcpRequestHeader { command: cmd, address };
     Ok((s, header))
-}
-
-fn write_command_response(s: TcpStream, rep: Reply, addr: SocketAddr) -> impl Future<Item=TcpStream, Error=Error> {
-    let addr = Address::SocketAddress(addr);
-    let resp = TcpResponseHeader::new(rep, addr);
-    let mut buf = BytesMut::with_capacity(resp.len());
-    buf.put_slice(&[consts::SOCKS5_VERSION, resp.reply as u8, 0x00]);
-    write_address(&resp.address, &mut buf);
-    write_all(s, buf)
-        .map(|(s, _b)| s)
-        .map_err(|e| e.into())
 }
 
 async fn write_command_response_async(s: &mut TcpStream, rep: Reply, addr: SocketAddr)
