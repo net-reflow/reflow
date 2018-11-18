@@ -3,6 +3,7 @@
 //! Implements [SOCKS Protocol Version 5](https://www.ietf.org/rfc/rfc1928.txt) proxy protocol
 
 use std::convert::TryInto;
+use std::convert;
 use std::fmt::{self, Debug, Formatter};
 use std::io::{self};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -18,6 +19,7 @@ mod consts;
 pub mod listen;
 mod heads;
 mod codec;
+mod client;
 
 pub use self::consts::Command;
 
@@ -37,6 +39,20 @@ pub enum SocksError {
     NoSupportAuth,
     #[fail(display="Unsupported command {}", cmd)]
     CommandUnSupport { cmd: u8 },
+    #[fail(display="Invalid reply {}", reply)]
+    InvalidReply { reply: u8 },
+    #[fail(display="Server replied error {:?}", reply)]
+    RepliedError { reply: Reply },
+    #[fail(display="Violation of the socks protocol")]
+    ProtocolIncorrect,
+    #[fail(display="IO Error {:?}", err)]
+    IOError { err: io::Error },
+}
+
+impl convert::From<io::Error> for SocksError {
+    fn from(err: io::Error) -> Self {
+        SocksError::IOError {err}
+    }
 }
 
 /// SOCKS5 address type
@@ -79,7 +95,7 @@ async fn read_u16(stream: &mut TcpStream) -> io::Result<u16> {
     Ok(BigEndian::read_u16(&b))
 }
 
-pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, Error> {
+pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, SocksError> {
     let addr_type: u8 = await!(read_u8(stream))?;
     match addr_type.try_into()? {
         consts::AddrType::IPV4 => {

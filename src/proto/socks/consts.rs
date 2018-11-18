@@ -54,7 +54,6 @@ impl TryFrom<u8> for AddrType {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub enum Reply {
     SUCCEEDED = 0x00,
@@ -66,4 +65,25 @@ pub enum Reply {
     TtlExpired = 0x06,
     CommandNotSupported = 0x07,
     AddressTypeNotSupported = 0x08,
+}
+
+impl TryFrom<u8> for Reply {
+    type Error = SocksError;
+
+    fn try_from(value: u8) -> Result<Self, <Self as TryFrom<u8>>::Error> {
+        use self::Reply::*;
+        let r = match value {
+            0 => SUCCEEDED,
+            1 => GeneralFailure,
+            2 => ConnectionNotAllowed,
+            3 => NetworkUnreachable,
+            4 => HostUnreachable,
+            5 => ConnectionRefused,
+            6 => TtlExpired,
+            7 => CommandNotSupported ,
+            8 => AddressTypeNotSupported,
+            x => return Err(SocksError::InvalidReply { reply: x})
+        };
+        Ok(r)
+    }
 }
