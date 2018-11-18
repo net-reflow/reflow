@@ -5,7 +5,6 @@ use super::SocksError;
 
 pub const SOCKS5_VERSION:                          u8 = 0x05;
 
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum AuthMethod {
     NONE = 0x00,
