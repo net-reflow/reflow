@@ -5,16 +5,12 @@ use tokio_io::io::write_all;
 use tokio;
 use failure::Error;
 use std::net::SocketAddr;
-use futures_cpupool::CpuPool;
 use net2::TcpBuilder;
 
 mod copy;
 use std::sync::Arc;
 use crate::relay::TcpRouter;
 use bytes::Bytes;
-use tokio::io;
-use socks::Socks5Stream;
-use std::time::Duration;
 use tokio::reactor::Handle;
 use self::copy::copy_verbose;
 use std::net::IpAddr;
@@ -23,19 +19,18 @@ use crate::conf::RoutingAction;
 use crate::conf::EgressAddr;
 use crate::relay::inspect::parse_first_packet;
 use crate::relay::inspect::TcpProtocol;
-
-pub const TIMEOUT: u64 = 10;
+use crate::proto::socks::connect_socks_to;
+use crate::proto::socks::Address;
 
 pub async fn handle_incoming_tcp(
     mut client_stream: TcpStream,
     a: SocketAddr,
     router: Arc<TcpRouter>,
-    pool: CpuPool,
 )-> Result<(), Error> {
     let tcp = await!(parse_first_packet(&mut client_stream))?;
     if let Some(r) = router.route(a, &tcp.protocol) {
         await!(carry_out(
-                tcp.bytes.freeze(), a, r.clone(), client_stream, pool,
+                tcp.bytes.freeze(), a, r.clone(), client_stream,
                 tcp.protocol,
         ))?;
     } else {
@@ -53,7 +48,6 @@ async fn carry_out(
     a: SocketAddr,
     r: RoutingAction,
     client_stream: TcpStream,
-    p: CpuPool,
     pr: TcpProtocol,
 )-> Result<(), Error> {
     let s = match r {
@@ -69,15 +63,9 @@ async fn carry_out(
                     .map_err(|e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", &pr, a, ip, e))
             },
             EgressAddr::Socks5(x)=> {
-                let ss = await!(p.spawn_fn(move || -> io::Result<Socks5Stream> {
-                    let ss = Socks5Stream::connect(x, a)?;
-                    ss.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-                    Ok(ss)
-                })).map_err(|e| {
-                    format_err!("Error making {:?} connection to {:?} through {:?}: {}", &pr, a, x, e)
-                })?;
-                let ts = ss.into_inner();
-                TcpStream::from_std(ts, &Handle::current()).map_err(|e| e.into())
+                let mut s = await!(TcpStream::connect(&x))?;
+                await!(connect_socks_to(&mut s, Address::SocketAddress(a)))?;
+                Ok(s)
             },
         }
     }?;

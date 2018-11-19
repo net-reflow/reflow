@@ -68,7 +68,7 @@ pub fn run()-> Result<(), i32> {
             if let Err(e) = run_with_conf(r,
                                           conf.domain_matcher.clone(),
                                           conf.ip_matcher.clone(),
-                                          pool.clone()) {
+            ) {
                 error!("Relay error: {:?}", e);
             }
         }

@@ -12,10 +12,9 @@ use crate::proto::socks::Address;
 use crate::proto::socks::SocksError;
 use crate::proto::socks::TcpRequestHeader;
 use crate::relay::TcpRouter;
-use futures_cpupool::CpuPool;
 use crate::proto::socks::listen::handle_socks_handshake;
 
-pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>, p: CpuPool)->Result<(), Error >{
+pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>)->Result<(), Error >{
     let l = tokio::net::TcpListener::bind(addr)?;
     let mut l = l.incoming();
     tokio::spawn_async(async move{
@@ -24,9 +23,8 @@ pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Ar
                 Ok(s) => {
                     let r1 = resolver.clone();
                     let rt1 = router.clone();
-                    let p = p.clone();
                     tokio::spawn_async(async move {
-                        let _r = await!(handle_client(s, r1, rt1, p)).map_err(|e| {
+                        let _r = await!(handle_client(s, r1, rt1)).map_err(|e| {
                             error!("error handling client {}", e);
                         });
                     });
@@ -45,11 +43,11 @@ async fn handle_client(
     s: TcpStream,
     res: Arc<ResolverFuture>,
     rt: Arc<TcpRouter>,
-    p: CpuPool) -> Result<(), Error>
+) -> Result<(), Error>
 {
     let (s, req) = await!(handle_socks_handshake(s))?;
     let a = await!(read_address(req, res.clone()))?;
-    await!(handle_incoming_tcp(s, a, rt, p))
+    await!(handle_incoming_tcp(s, a, rt))
 }
 
 async fn read_address(head: TcpRequestHeader, resolver: Arc<ResolverFuture>)
