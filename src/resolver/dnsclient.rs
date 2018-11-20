@@ -13,6 +13,7 @@ use crate::resolver::client::TIMEOUT;
 use tokio::reactor::Handle;
 use crate::conf::NameServer;
 use crate::conf::NameServerRemote;
+use crate::proto::socks::SocksError;
 
 #[derive(Debug)]
 pub enum DnsClient {
@@ -43,14 +44,20 @@ impl DnsClient {
     }
 
     pub async fn resolve(&self, data: Vec<u8>)
-        -> io::Result<Vec<u8>> {
+        -> Result<Vec<u8>, SocksError> {
         return match self {
             DnsClient::ViaSocks5(s) => {
                 await!(s.get(data))
             }
             // FIXME these always use udp even when tcp is configured
-            DnsClient::Direct(s) => await!(udp_get(s, data)),
-            DnsClient::DirectBind(s, i) => await!(udp_bind_get(*s, *i, data))
+            DnsClient::Direct(s) => {
+                let vec = await!(udp_get(s, data))?;
+                Ok(vec)
+            },
+            DnsClient::DirectBind(s, i) => {
+                let vec = await!(udp_bind_get(*s, *i, data))?;
+                Ok(vec)
+            }
         };
     }
 }

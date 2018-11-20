@@ -3,7 +3,6 @@ use super::SocksError;
 use crate::proto::socks::consts::Reply;
 use std::convert::TryInto;
 use std::io;
-use failure::Error;
 use tokio::io::{read_exact, write_all};
 use crate::proto::socks::read_socks_address;
 use super::consts::{SOCKS5_VERSION, AuthMethod};
@@ -41,7 +40,7 @@ async fn read_response_head(mut socket: &mut TcpStream) -> Result<Address, Socks
 /// given a stream already connected to a socks server without auth
 /// instruct it to connect to a target
 pub async fn connect_socks_to(mut stream: &mut TcpStream, target: Address)
-                              -> Result<Address, Error> {
+                              -> Result<Address, SocksError> {
 
     let packet = [SOCKS5_VERSION,
         1, // one method
