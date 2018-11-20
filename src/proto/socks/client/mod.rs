@@ -13,6 +13,8 @@ use crate::proto::socks::consts;
 use super::Address;
 use crate::proto::socks::codec::write_address;
 
+mod udp;
+
 /// response from a socks proxy server
 async fn read_response_head(mut socket: &mut TcpStream) -> Result<Address, SocksError> {
 
@@ -41,13 +43,26 @@ async fn read_response_head(mut socket: &mut TcpStream) -> Result<Address, Socks
 /// instruct it to connect to a target
 pub async fn connect_socks_to(mut stream: &mut TcpStream, target: Address)
                               -> Result<Address, SocksError> {
+    await!(connect_socks_command(&mut stream, target, consts::Command::TcpConnect))
+}
+
+pub async fn connect_socks_udp(mut stream: &mut TcpStream, target: Address)
+                               -> Result<Address, SocksError> {
+    await!(connect_socks_command(&mut stream, target, consts::Command::UdpAssociate))
+}
+
+async fn connect_socks_command(
+    mut stream: &mut TcpStream,
+    target: Address,
+    cmd: consts::Command,
+) -> Result<Address, SocksError> {
 
     let packet = [SOCKS5_VERSION,
         1, // one method
         0, // no auth
     ];
     await!(write_all(&mut stream, &packet))?;
-    await!(write_command_request(&mut stream, target))?;
+    await!(write_command_request(&mut stream, target, cmd))?;
 
     let a = await!(read_response_head(&mut stream))?;
     Ok(a)
@@ -70,11 +85,11 @@ async fn read_handshake_response(mut s: &mut TcpStream)
     Ok(HandshakeResponse { chosen_method: cmet })
 }
 
-async fn write_command_request(s: &mut TcpStream, addr: Address)
+async fn write_command_request(s: &mut TcpStream, addr: Address, cmd: consts::Command)
                                       -> Result<(), io::Error> {
     let mut buf = BytesMut::with_capacity((&addr).len());
     buf.put_slice(&[SOCKS5_VERSION,
-        consts::Command::TcpConnect as u8,
+        cmd as u8,
         0x00, // reserved
     ]);
     write_address(&addr, &mut buf);
