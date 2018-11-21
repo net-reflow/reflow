@@ -5,10 +5,14 @@ use crate::proto::socks::Address;
 use std::net::SocketAddrV4;
 use std::net::Ipv4Addr;
 use crate::proto::socks::client::connect_socks_udp;
+use std::io;
+use bytes::{BytesMut, BufMut};
+use crate::proto::socks::codec::write_address;
 
 #[derive(Debug)]
 pub struct Socks5Datagram {
     socket: UdpSocket,
+    proxy_addr: SocketAddr,
     // keeps the session alive
     stream: TcpStream,
 }
@@ -29,11 +33,27 @@ impl Socks5Datagram {
         };
 
         let socket = UdpSocket::bind(&local)?;
-        socket.connect(&proxy_addr)?;
 
         Ok(Socks5Datagram {
             socket: socket,
+            proxy_addr,
             stream: stream,
         })
+    }
+
+    pub async fn send_to(self, d: &[u8], addr: Address) -> io::Result<Socks5Datagram> {
+        let mut buf = BytesMut::with_capacity((&addr).len()+3+d.len());
+        buf.put_slice(&[0, 0, // reserved
+            0, // fragment id
+        ]);
+        write_address(&addr, &mut buf);
+        buf.put_slice(d);
+        let (s, _b) = await!(self.socket.send_dgram(buf, &self.proxy_addr))?;
+        let new_self = Socks5Datagram {
+            socket: s,
+            proxy_addr: self.proxy_addr,
+            stream: self.stream,
+        };
+        Ok(new_self)
     }
 }
