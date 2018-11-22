@@ -8,6 +8,11 @@ use crate::proto::socks::client::connect_socks_udp;
 use std::io;
 use bytes::{BytesMut, BufMut};
 use crate::proto::socks::codec::write_address;
+use crate::proto::socks::codec::read_address;
+use byteorder::BigEndian;
+use byteorder::ReadBytesExt;
+
+const MAX_ADDR_LEN: usize = 260;
 
 #[derive(Debug)]
 pub struct Socks5Datagram {
@@ -55,5 +60,21 @@ impl Socks5Datagram {
             stream: self.stream,
         };
         Ok(new_self)
+    }
+
+    pub async fn recv_from(self, buf: &mut [u8]) -> Result<Address, SocksError> {
+        let mut header = BytesMut::with_capacity(MAX_ADDR_LEN + 3);
+        let (socket, _h, len, addr) = await!(self.socket.recv_dgram(&mut header))?;
+        let mut cursor = io::Cursor::new(header);
+
+        if cursor.read_u16::<BigEndian>()? != 0 {
+            return Err(SocksError::ProtocolIncorrect);
+        }
+        if cursor.read_u8()? != 0 {
+            return Err(SocksError::ProtocolIncorrect);
+        }
+        let a = read_address(&mut cursor)?;
+        buf.copy_from_slice(cursor.get_ref());
+        Ok(a)
     }
 }
