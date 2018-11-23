@@ -11,6 +11,7 @@ use std::net::Shutdown;
 use std::u8;
 
 use byteorder::{BigEndian};
+use byteorder::ReadBytesExt;
 
 use tokio_io::io::read_exact;
 
@@ -85,55 +86,45 @@ impl Debug for Address {
     }
 }
 
-async fn read_u8(stream: &mut TcpStream) -> io::Result<u8> {
-    let (_s, b) = await!(read_exact(stream, [0u8; 1]))?;
-    Ok(b[0])
-}
-
-async fn read_u16(stream: &mut TcpStream) -> io::Result<u16> {
-    let (_s, b) = await!(read_exact(stream, [0u8; 2]))?;
-    Ok(BigEndian::read_u16(&b))
-}
-
 pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, SocksError> {
-    let addr_type: u8 = await!(read_u8(stream))?;
-    match addr_type.try_into()? {
+    let a = await!(read_exact(&mut stream, [0u8; 1]))?.1[0];
+    let addr_type: consts::AddrType = a.try_into()?;
+    match addr_type {
         consts::AddrType::IPV4 => {
-            let v4addr = Ipv4Addr::new(await!(read_u8(stream))?,
-                                       await!(read_u8(stream))?,
-                                       await!(read_u8(stream))?,
-                                       await!(read_u8(stream))?);
-            let port = await!(read_u16(stream))?;
+            let buf = [0u8; 4+2];
+            let (_s, buf) = await!(read_exact(&mut stream, buf))?;
+            let mut cursor = io::Cursor::new(buf);
+            let v4addr = Ipv4Addr::from(cursor.read_u32::<BigEndian>()?);
+            let port = cursor.read_u16::<BigEndian>()?;
             let addr = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(v4addr, port)));
             Ok(addr)
         }
         consts::AddrType::IPV6 => {
-            let v6addr = Ipv6Addr::new(await!(read_u16(stream))?,
-                                       await!(read_u16(stream))?,
-                                       await!(read_u16(stream))?,
-                                       await!(read_u16(stream))?,
-                                       await!(read_u16(stream))?,
-                                       await!(read_u16(stream))?,
-                                       await!(read_u16(stream))?,
-                                       await!(read_u16(stream))?);
-            let port = await!(read_u16(stream))?;
+            let buf = [0u8; 16];
+            let (_s, buf) = await!(read_exact(&mut stream, buf))?;
+            let v6addr = Ipv6Addr::from(buf);
+            let buf = [0u8; 2];
+            let (_s, buf) = await!(read_exact(&mut stream, buf))?;
+            let mut cursor = io::Cursor::new(buf);
+            let port = cursor.read_u16::<BigEndian>()?;
 
             let addr = Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));
             Ok(addr)
         }
         consts::AddrType::DomainName => {
             // domain and port
-            let length = await!(read_u8(stream))?;
-            let addr_len = length - 2;
+            let length = await!(read_exact(&mut stream, [0u8; 1]))?.1[0];
+            let addr_len = length as usize - 2;
             let mut raw_addr= vec![];
-            raw_addr.resize(addr_len as usize, 0);
-            await!(read_exact(&mut stream, &mut raw_addr))?;
-
+            raw_addr.resize(addr_len + 2, 0);
+            let (_s, mut raw_addr) = await!(read_exact(&mut stream, raw_addr))?;
+            let mut cursor = io::Cursor::new(&raw_addr[addr_len..]);
+            let port = cursor.read_u16::<BigEndian>()?;
+            raw_addr.resize(addr_len, 0);
             let addr = match String::from_utf8(raw_addr) {
                 Ok(addr) => addr,
-                Err(..) => return Err(SocksError::InvalidDomainEncoding.into()),
+                Err(..) => return Err(SocksError::InvalidDomainEncoding),
             };
-            let port = await!(read_u16(stream))?;
 
             let addr = Address::DomainNameAddress(addr, port);
             Ok(addr)
