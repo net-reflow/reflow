@@ -10,7 +10,6 @@ use super::dnsclient::DnsClient;
 use crate::conf::DomainMatcher;
 use trust_dns::serialize::binary::BinDecoder;
 use trust_dns::serialize::binary::BinDecodable;
-use futures_cpupool::CpuPool;
 use crate::conf::DnsProxy;
 
 pub struct SmartResolver {
@@ -20,14 +19,14 @@ pub struct SmartResolver {
 }
 
 impl SmartResolver {
-    pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxy, pool: CpuPool)
+    pub fn new(router: Arc<DomainMatcher>, regionconf: &DnsProxy)
                -> Result<SmartResolver, Error> {
         let rresolvers: Vec<(Bytes, DnsClient)> = regionconf.forward
             .iter().map(|(r, s)| {
-            let dc = DnsClient::new(s, &pool);
+            let dc = DnsClient::new(s);
             (r.clone(), dc)
         }).collect();
-        let dresolver = DnsClient::new(&regionconf.default, &pool);
+        let dresolver = DnsClient::new(&regionconf.default);
         Ok(SmartResolver {
             region_resolver: rresolvers,
             default_resolver: dresolver,

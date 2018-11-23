@@ -1,5 +1,5 @@
 use tokio::net::{UdpSocket, TcpStream};
-use std::net::SocketAddr;
+use std::net::{self, SocketAddr};
 use crate::proto::socks::SocksError;
 use crate::proto::socks::Address;
 use std::net::SocketAddrV4;
@@ -11,6 +11,9 @@ use crate::proto::socks::codec::write_address;
 use crate::proto::socks::codec::read_address;
 use byteorder::BigEndian;
 use byteorder::ReadBytesExt;
+use std::time::Duration;
+use tokio::reactor::Handle;
+use std::io::Read;
 
 const MAX_ADDR_LEN: usize = 260;
 
@@ -25,7 +28,10 @@ pub struct Socks5Datagram {
 impl Socks5Datagram {
     /// Creates a UDP socket bound to the specified address which will have its
     /// traffic routed through the specified proxy.
-    pub async fn bind(proxy: SocketAddr, local: SocketAddr) -> Result<Socks5Datagram, SocksError> {
+    pub async fn bind_with_timeout(
+        proxy: SocketAddr,
+        local: SocketAddr,
+        time: Option<Duration>) -> Result<Socks5Datagram, SocksError> {
         // we don't know what our IP is from the perspective of the proxy, so
         // don't try to pass `addr` in here.
         let dst = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0)));
@@ -36,8 +42,12 @@ impl Socks5Datagram {
             // I don't think a socks proxy will ever return a domain name in this case
             Address::DomainNameAddress(_, _) => return Err(SocksError::ProtocolIncorrect),
         };
+        let socket = net::UdpSocket::bind(&local)?;
+        if time.is_some() {
+            socket.set_read_timeout(time)?;
+        }
 
-        let socket = UdpSocket::bind(&local)?;
+        let socket = UdpSocket::from_std(socket, &Handle::current())?;
 
         Ok(Socks5Datagram {
             socket: socket,
@@ -62,9 +72,10 @@ impl Socks5Datagram {
         Ok(new_self)
     }
 
-    pub async fn recv_from(self, buf: &mut [u8]) -> Result<Address, SocksError> {
+    pub async fn recv_from(self, buf: &mut [u8])
+        -> Result<(Address, usize), SocksError> {
         let mut header = BytesMut::with_capacity(MAX_ADDR_LEN + 3);
-        let (socket, _h, len, addr) = await!(self.socket.recv_dgram(&mut header))?;
+        let (_socket, _h, _len, _addr) = await!(self.socket.recv_dgram(&mut header))?;
         let mut cursor = io::Cursor::new(header);
 
         if cursor.read_u16::<BigEndian>()? != 0 {
@@ -74,7 +85,11 @@ impl Socks5Datagram {
             return Err(SocksError::ProtocolIncorrect);
         }
         let a = read_address(&mut cursor)?;
-        buf.copy_from_slice(cursor.get_ref());
-        Ok(a)
+        let n = cursor.read(buf)?;
+        Ok((a, n))
+    }
+
+    pub fn get_ref(&self) -> &UdpSocket {
+        &self.socket
     }
 }

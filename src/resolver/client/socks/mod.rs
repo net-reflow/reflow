@@ -3,9 +3,8 @@ use std::fmt;
 use std::net::SocketAddr;
 
 use byteorder::{BigEndian,WriteBytesExt,ReadBytesExt};
-use socks::Socks5Datagram;
+use crate::proto::socks::Socks5Datagram;
 use std::time::Duration;
-use futures_cpupool::CpuPool;
 use tokio::net::TcpStream;
 use tokio_io::io as tio;
 
@@ -18,7 +17,6 @@ use crate::proto::socks::SocksError;
 
 /// Do dns queries through a socks5 proxy
 pub struct SockGetterAsync {
-    pool: CpuPool,
     proxy: SocketAddr,
     addr: NameServerRemote,
 }
@@ -31,9 +29,8 @@ impl fmt::Debug for SockGetterAsync {
 
 
 impl SockGetterAsync {
-    pub fn new(pool: CpuPool, proxy: SocketAddr, remote: NameServerRemote)-> SockGetterAsync {
+    pub fn new(proxy: SocketAddr, remote: NameServerRemote)-> SockGetterAsync {
         let sga = SockGetterAsync {
-            pool: pool,
             proxy: proxy,
             addr: remote,
         };
@@ -53,20 +50,17 @@ impl SockGetterAsync {
 
     pub async fn get_udp(&self, data: Vec<u8>)
                    -> Result<Vec<u8>, SocksError> {
-        let socks5 = Socks5Datagram::bind(self.proxy, "0.0.0.0:0")?;
-        socks5.get_ref().set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
+        use std::str::FromStr;
+        let la = SocketAddr::from_str("0.0.0.0:0").unwrap();
+        let socks5 = await!(Socks5Datagram::bind_with_timeout(self.proxy, la, Some(Duration::from_secs(TIMEOUT))))?;
         let addr = ns_sock_addr(&self.addr);
-        let socks5 = await!(self.pool.spawn_fn(move || -> io::Result<Socks5Datagram> {
-            let _n_b = socks5.send_to(&data, addr)?;
-            Ok(socks5)
-        }))?;
-        let recv = await!(self.pool.spawn_fn(move || -> io::Result<Vec<u8>> {
-            let mut buf = vec![0; 998];
-            let (n, _addr) = socks5.recv_from(&mut buf)?;
-            buf.truncate(n);
-            Ok(buf)
-        }))?;
-        Ok(recv)
+        let socks5 = await!(socks5.send_to(&data, Address::SocketAddress(addr)))?;
+
+        let mut buf = vec![0; 998];
+        let (addr, n) = await!(socks5.recv_from(&mut buf))?;
+        debug!("receive {} from {:?}", n, addr);
+        buf.truncate(n);
+        Ok(buf)
     }
 
     pub async fn get_tcp(&self, data: Vec<u8>)

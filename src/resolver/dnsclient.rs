@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use super::client::socks::SockGetterAsync;
 use super::client::udp::udp_get;
-use futures_cpupool::CpuPool;
 use std::io;
 use crate::conf::EgressAddr;
 use std::net::IpAddr;
@@ -23,14 +22,14 @@ pub enum DnsClient {
 }
 
 impl DnsClient {
-    pub fn new(up: &NameServer, pool: &CpuPool)
+    pub fn new(up: &NameServer)
                -> DnsClient{
         if let Some(ref e) = up.egress {
             let e = e.val();
             match e.addr() {
                 EgressAddr::Socks5(s) => {
                     DnsClient::ViaSocks5(
-                        SockGetterAsync::new(pool.clone(), s, up.remote.clone())
+                        SockGetterAsync::new(s, up.remote.clone())
                     )
                 }
                 EgressAddr::From(i) => {

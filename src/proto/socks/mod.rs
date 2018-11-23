@@ -23,10 +23,10 @@ mod client;
 
 pub use self::consts::Command;
 pub use self::client::connect_socks_to;
+pub use self::client::udp::Socks5Datagram;
 
 use self::consts::Reply;
 use tokio::net::TcpStream;
-use byteorder::ByteOrder;
 
 #[derive(Debug, Fail)]
 pub enum SocksError {

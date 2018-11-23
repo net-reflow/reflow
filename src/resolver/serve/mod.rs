@@ -1,7 +1,6 @@
 use failure::Error;
 use std::io;
 
-use futures_cpupool::CpuPool;
 use tokio;
 use std::sync::Arc;
 use std::net::SocketAddr;
@@ -14,8 +13,8 @@ use tokio::reactor::Handle;
 use std::net::UdpSocket as UdpSocketStd;
 use tokio::net::UdpSocket;
 
-pub fn serve(conf: DnsProxy, matcher: Arc<DomainMatcher>, pool: CpuPool) -> Result<(), Error> {
-    let handler = handler::SmartResolver::new(matcher, &conf, pool)?;
+pub fn serve(conf: DnsProxy, matcher: Arc<DomainMatcher>) -> Result<(), Error> {
+    let handler = handler::SmartResolver::new(matcher, &conf)?;
     let handler = Arc::new(handler);
     let addr = conf.listen;
 

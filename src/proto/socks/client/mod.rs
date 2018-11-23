@@ -13,7 +13,7 @@ use crate::proto::socks::consts;
 use super::Address;
 use crate::proto::socks::codec::write_address;
 
-mod udp;
+pub mod udp;
 
 /// response from a socks proxy server
 async fn read_response_head(mut socket: &mut TcpStream) -> Result<Address, SocksError> {

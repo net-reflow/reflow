@@ -8,7 +8,6 @@ extern crate bytes;
 extern crate failure;
 #[macro_use]
 extern crate futures;
-extern crate futures_cpupool;
 extern crate httparse;
 #[macro_use]
 extern crate log;
@@ -29,7 +28,6 @@ extern crate core;
 use futures::future;
 use futures::Future;
 use structopt::StructOpt;
-use futures_cpupool::CpuPool;
 use tokio::runtime::Runtime;
 
 mod proto;
@@ -52,7 +50,6 @@ pub fn run()-> Result<(), i32> {
         error!("The given configuration directory doesn't exist");
         return Err(99);
     }
-    let pool = CpuPool::new_num_cpus();
 
     let conf = match load_conf(&config_path) {
         Ok(x) => x,
@@ -75,7 +72,7 @@ pub fn run()-> Result<(), i32> {
 
         if let Some(dns) = conf.dns {
             info!("Starting dns proxy");
-            let ds = resolver::serve(dns, conf.domain_matcher.clone(), pool);
+            let ds = resolver::serve(dns, conf.domain_matcher.clone());
             if let Err(e) = ds {
                 error!("Dns server error: {:?}", e);
             }

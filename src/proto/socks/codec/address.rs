@@ -61,7 +61,7 @@ fn write_domain_name_address<B: BufMut>(dnaddr: &str, port: u16, buf: &mut B) {
     buf.put_u16_be(port);
 }
 
-pub fn read_address<R: Read>(mut stream: &mut R) -> Result<Address, SocksError> {
+pub fn read_address<R: Read>(stream: &mut R) -> Result<Address, SocksError> {
     let mut b = [0u8; 1];
     stream.read_exact( &mut b)?;
     let addr_type: consts::AddrType = b[0].try_into()?;
