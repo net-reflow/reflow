@@ -46,6 +46,8 @@ pub enum SocksError {
     RepliedError { reply: Reply },
     #[fail(display="Violation of the socks protocol")]
     ProtocolIncorrect,
+    #[fail(display="Invalid data {}: {:?}", msg, data)]
+    InvalidData { msg: &'static str, data: Vec<u8> },
     #[fail(display="IO Error {:?}", err)]
     IOError { err: io::Error },
 }

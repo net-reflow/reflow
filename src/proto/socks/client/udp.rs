@@ -9,7 +9,6 @@ use std::io;
 use bytes::{BytesMut, BufMut};
 use crate::proto::socks::codec::write_address;
 use crate::proto::socks::codec::read_address;
-use byteorder::BigEndian;
 use byteorder::ReadBytesExt;
 use std::time::Duration;
 use tokio::reactor::Handle;
@@ -40,7 +39,10 @@ impl Socks5Datagram {
         let proxy_addr = match proxy_addr {
             Address::SocketAddress(a) => a,
             // I don't think a socks proxy will ever return a domain name in this case
-            Address::DomainNameAddress(_, _) => return Err(SocksError::ProtocolIncorrect),
+            Address::DomainNameAddress(d, p) => {
+                warn!("Received domain name address when connecting udp over socks: {}:{}", d, p);
+                return Err(SocksError::ProtocolIncorrect)
+            },
         };
         let socket = net::UdpSocket::bind(&local)?;
         if time.is_some() {
@@ -78,11 +80,14 @@ impl Socks5Datagram {
         let (_socket, _h, _len, _addr) = await!(self.socket.recv_dgram(&mut header))?;
         let mut cursor = io::Cursor::new(header);
 
-        if cursor.read_u16::<BigEndian>()? != 0 {
-            return Err(SocksError::ProtocolIncorrect);
+        let mut rb = [0u8; 2];
+        cursor.read_exact(&mut rb)?;
+        if rb[0] != 0 || rb[1] != 0 {
+            return Err(SocksError::InvalidData { msg: "invalid reserved bytes", data: rb.to_vec()});
         }
-        if cursor.read_u8()? != 0 {
-            return Err(SocksError::ProtocolIncorrect);
+        let frag = cursor.read_u8()?;
+        if frag != 0 {
+            return Err(SocksError::InvalidData { msg: "invalid fragment id", data: vec![frag]});
         }
         let a = read_address(&mut cursor)?;
         let n = cursor.read(buf)?;

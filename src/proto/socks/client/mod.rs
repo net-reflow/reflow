@@ -34,7 +34,7 @@ async fn read_response_head(mut socket: &mut TcpStream) -> Result<Address, Socks
     }
 
     if res != 0 {
-        return Err(SocksError::ProtocolIncorrect);
+        return Err(SocksError::InvalidData { msg: "Reserved byte not zero", data: vec![res]});
     }
     await!(read_socks_address(socket))
 }
@@ -64,6 +64,7 @@ async fn connect_socks_command(
     await!(write_all(&mut stream, &packet))?;
     await!(write_command_request(&mut stream, target, cmd))?;
 
+    await!(read_handshake_response(&mut stream))?;
     let a = await!(read_response_head(&mut stream))?;
     Ok(a)
 }
