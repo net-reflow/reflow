@@ -18,7 +18,6 @@ tokio = { version="^0.1.7", features = ["async-await-preview"] }
 tokio-async-await = "0.1.0"
 tokio-io = "^0.1"
 radix_trie = "0.1.*"
-socks = "^0.3"
 structopt = "^0"
 treebitmap = "0.3.1"
 trust-dns = "0.14.0"

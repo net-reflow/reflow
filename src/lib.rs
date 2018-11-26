@@ -14,7 +14,6 @@ extern crate log;
 extern crate net2;
 #[macro_use]
 extern crate nom;
-extern crate socks;
 #[macro_use] extern crate structopt;
 #[macro_use]
 extern crate tokio;
