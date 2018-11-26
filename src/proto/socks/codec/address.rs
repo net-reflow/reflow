@@ -67,8 +67,6 @@ pub fn read_address<R: Read>(stream: &mut R) -> Result<Address, SocksError> {
     let addr_type: consts::AddrType = b[0].try_into()?;
     match addr_type {
         consts::AddrType::IPV4 => {
-            let mut buf = [0u8; 4];
-            stream.read_exact(&mut buf)?;
             let v4addr = Ipv4Addr::from(stream.read_u32::<BigEndian>()?);
             let port = stream.read_u16::<BigEndian>()?;
             let addr = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(v4addr, port)));
@@ -78,8 +76,6 @@ pub fn read_address<R: Read>(stream: &mut R) -> Result<Address, SocksError> {
             let mut buf = [0u8; 16];
             stream.read_exact(&mut buf)?;
             let v6addr = Ipv6Addr::from(buf);
-            let mut buf = [0u8; 2];
-            stream.read_exact(&mut buf)?;
             let port = stream.read_u16::<BigEndian>()?;
 
             let addr = Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));

@@ -14,8 +14,6 @@ use std::time::Duration;
 use tokio::reactor::Handle;
 use std::io::Read;
 
-const MAX_ADDR_LEN: usize = 260;
-
 #[derive(Debug)]
 pub struct Socks5Datagram {
     socket: UdpSocket,
@@ -76,8 +74,12 @@ impl Socks5Datagram {
 
     pub async fn recv_from(self, buf: &mut [u8])
         -> Result<(Address, usize), SocksError> {
-        let mut header = BytesMut::with_capacity(MAX_ADDR_LEN + 3);
-        let (_socket, _h, _len, _addr) = await!(self.socket.recv_dgram(&mut header))?;
+        let mut header:Vec<u8> = vec![];
+        header.resize(998, 0);
+        let (_socket, header, len, addr) = await!(self.socket.recv_dgram(&mut header))?;
+        trace!("received dgram with {} bytes from {:?}", len, addr);
+        header.resize(len, 0);
+        trace!("dgram {:?}", header);
         let mut cursor = io::Cursor::new(header);
 
         let mut rb = [0u8; 2];
@@ -90,6 +92,7 @@ impl Socks5Datagram {
             return Err(SocksError::InvalidData { msg: "invalid fragment id", data: vec![frag]});
         }
         let a = read_address(&mut cursor)?;
+        trace!("read address {:?} with length {}", a, a.len());
         let n = cursor.read(buf)?;
         Ok((a, n))
     }
