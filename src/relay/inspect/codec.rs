@@ -20,6 +20,7 @@ pub async fn parse_first_packet(socket: &mut TcpStream)-> Result<InspectedTcp, E
         let guess = guess_bytes(&buf);
         trace!("detected protocol {:?}", guess);
 
+        buf.resize(pos, 0);
         let tcp = InspectedTcp {
             bytes: buf,
             protocol: guess,
