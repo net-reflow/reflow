@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "reflow"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "byteorder 1.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
