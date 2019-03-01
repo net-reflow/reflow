@@ -3,7 +3,6 @@ use std::fmt;
 use std::net::SocketAddr;
 
 use byteorder::{BigEndian,WriteBytesExt,ReadBytesExt};
-use crate::proto::socks::Socks5Datagram;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_io::io as tio;
@@ -11,9 +10,10 @@ use tokio_io::io as tio;
 use super::TIMEOUT;
 
 use crate::conf::NameServerRemote;
-use crate::proto::socks::connect_socks_to;
-use crate::proto::socks::Address;
-use crate::proto::socks::SocksError;
+use asocks5::socks::Address;
+use asocks5::socks::SocksError;
+use asocks5::Socks5Datagram;
+use asocks5::connect_socks_to;
 
 /// Do dns queries through a socks5 proxy
 pub struct SockGetterAsync {

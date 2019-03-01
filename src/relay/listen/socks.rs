@@ -7,12 +7,12 @@ use trust_dns_resolver::ResolverFuture;
 
 use crate::relay::forwarding::handle_incoming_tcp;
 use tokio::net::TcpStream;
-use crate::proto::socks::Command;
-use crate::proto::socks::Address;
-use crate::proto::socks::SocksError;
-use crate::proto::socks::TcpRequestHeader;
+use asocks5::socks::Address;
+use asocks5::socks::SocksError;
+use asocks5::socks::TcpRequestHeader;
 use crate::relay::TcpRouter;
-use crate::proto::socks::listen::handle_socks_handshake;
+use asocks5::listen::handle_socks_handshake;
+use asocks5::Command;
 
 pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>)->Result<(), Error >{
     let l = tokio::net::TcpListener::bind(addr)?;

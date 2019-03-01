@@ -7,10 +7,10 @@ use byteorder::WriteBytesExt;
 use byteorder::ReadBytesExt;
 use std::net::SocketAddrV6;
 use std::net::SocketAddr;
-use crate::proto::socks::Address;
-use crate::proto::socks::consts;
+use crate::socks::Address;
+use crate::consts;
 use std::io::Read;
-use crate::proto::socks::SocksError;
+use crate::socks::SocksError;
 use std::convert::TryInto;
 use std::net::{Ipv4Addr, Ipv6Addr};
 

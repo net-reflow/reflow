@@ -1,10 +1,12 @@
+use log::{trace, warn};
 use tokio::net::TcpStream;
+use tokio::await;
 use tokio_io::io::write_all;
 
-use crate::proto::socks::consts::AuthMethod;
-use crate::proto::socks::SocksError;
-use crate::proto::socks::HandshakeRequest;
-use crate::proto::socks::consts;
+use crate::consts::AuthMethod;
+use crate::socks::SocksError;
+use crate::socks::HandshakeRequest;
+use crate::consts;
 
 pub async fn handle_socks_head(s: &mut TcpStream, h: HandshakeRequest)
     ->Result<(), SocksError> {

@@ -1,25 +1,16 @@
 [package]
-name = "reflow"
-version = "0.1.2"
+name = "asocks5"
+version = "0.1.0"
 authors = ["mut"]
 edition = "2018"
 
 [dependencies]
-asocks5 = { path = "asocks5" }
 byteorder = "1.2.3"
 bytes = "^0.4"
-env_logger = "0.5.*"
 failure = "0.1.1"
 futures = "0.1.23"
-httparse = "^1.0"
 log = "^0.4"
-nom = {version = "^4.0", features=["verbose-errors"] }
 net2 = "^0.2"
 tokio = { version="^0.1.7", features = ["async-await-preview"] }
 tokio-async-await = "0.1.0"
 tokio-io = "^0.1"
-radix_trie = "0.1.*"
-structopt = "^0"
-treebitmap = "0.3.1"
-trust-dns = "0.14.0"
-trust-dns-resolver = "0.9.0"

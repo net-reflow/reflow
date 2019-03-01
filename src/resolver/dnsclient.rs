@@ -12,7 +12,7 @@ use crate::resolver::client::TIMEOUT;
 use tokio::reactor::Handle;
 use crate::conf::NameServer;
 use crate::conf::NameServerRemote;
-use crate::proto::socks::SocksError;
+use asocks5::socks::SocksError;
 
 #[derive(Debug)]
 pub enum DnsClient {

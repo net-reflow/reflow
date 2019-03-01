@@ -1,4 +1,3 @@
-#![feature(try_from)]
 #![feature(await_macro, async_await)]
 #![feature(futures_api)]
 
@@ -29,7 +28,6 @@ use futures::Future;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
 
-mod proto;
 mod relay;
 mod resolver;
 mod conf;

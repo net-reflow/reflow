@@ -19,8 +19,8 @@ use crate::conf::RoutingAction;
 use crate::conf::EgressAddr;
 use crate::relay::inspect::parse_first_packet;
 use crate::relay::inspect::TcpProtocol;
-use crate::proto::socks::connect_socks_to;
-use crate::proto::socks::Address;
+use asocks5::connect_socks_to;
+use asocks5::socks::Address;
 
 pub async fn handle_incoming_tcp(
     mut client_stream: TcpStream,

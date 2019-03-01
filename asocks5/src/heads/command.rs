@@ -1,20 +1,21 @@
 use std::convert::TryInto;
+use tokio::await;
 use tokio_io::io::read_exact;
 use tokio_io::io::write_all;
 
-use crate::proto::socks::TcpRequestHeader;
-use crate::proto::socks::consts;
-use crate::proto::socks::SocksError;
-use crate::proto::socks::Address;
+use crate::socks::TcpRequestHeader;
+use crate::consts;
+use crate::socks::SocksError;
+use crate::socks::Address;
 use std::net::Shutdown;
 use tokio::net::TcpStream;
 use std::net::SocketAddr;
 use bytes::BytesMut;
 use bytes::BufMut;
-use crate::proto::socks::consts::Reply;
-use crate::proto::socks::TcpResponseHeader;
+use crate::consts::Reply;
+use crate::socks::TcpResponseHeader;
 use super::super::codec::write_address;
-use crate::proto::socks::read_socks_address;
+use crate::socks::read_socks_address;
 
 pub async fn read_command_async(mut s: TcpStream, peer: SocketAddr)
     -> Result<(TcpStream, TcpRequestHeader), SocksError> {

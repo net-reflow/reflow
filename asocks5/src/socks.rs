@@ -2,6 +2,7 @@
 //!
 //! Implements [SOCKS Protocol Version 5](https://www.ietf.org/rfc/rfc1928.txt) proxy protocol
 
+use tokio::await;
 use std::convert::TryInto;
 use std::convert;
 use std::fmt::{self, Debug, Formatter};
@@ -12,21 +13,14 @@ use std::u8;
 
 use byteorder::{BigEndian};
 use byteorder::ReadBytesExt;
+use failure::Fail;
 
 use tokio_io::io::read_exact;
 
-mod consts;
-pub mod listen;
-mod heads;
-mod codec;
-mod client;
-
-pub use self::consts::Command;
-pub use self::client::connect_socks_to;
-pub use self::client::udp::Socks5Datagram;
-
-use self::consts::Reply;
+use crate::consts;
+use crate::consts::Reply;
 use tokio::net::TcpStream;
+use crate::Command;
 
 #[derive(Debug, Fail)]
 pub enum SocksError {
@@ -69,7 +63,7 @@ pub enum Address {
 
 impl Address {
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         match *self {
             Address::SocketAddress(SocketAddr::V4(..)) => 1 + 4 + 2,
             Address::SocketAddress(SocketAddr::V6(..)) => 1 + 8 * 2 + 2,

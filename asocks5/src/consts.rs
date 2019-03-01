@@ -1,7 +1,7 @@
 
 use std::convert::TryFrom;
 
-use super::SocksError;
+use super::socks::SocksError;
 
 pub const SOCKS5_VERSION:                          u8 = 0x05;
 

@@ -1,17 +1,18 @@
 use tokio::net::TcpStream;
-use super::SocksError;
-use crate::proto::socks::consts::Reply;
+use tokio::await;
+use super::socks::SocksError;
+use crate::consts::Reply;
 use std::convert::TryInto;
 use std::io;
 use tokio::io::{read_exact, write_all};
-use crate::proto::socks::read_socks_address;
+use crate::socks::read_socks_address;
 use super::consts::{SOCKS5_VERSION, AuthMethod};
 use std::net::Shutdown;
-use crate::proto::socks::HandshakeResponse;
+use crate::socks::HandshakeResponse;
 use bytes::{BytesMut, BufMut};
-use crate::proto::socks::consts;
-use super::Address;
-use crate::proto::socks::codec::write_address;
+use crate::consts;
+use crate::socks::Address;
+use crate::codec::write_address;
 
 pub mod udp;
 
