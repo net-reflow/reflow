@@ -76,7 +76,7 @@ pub async fn udp_bind_get(addr: SocketAddr, ip: IpAddr, data: Vec<u8>)
                -> io::Result<Vec<u8>> {
     let s = StdUdpSocket::bind(SocketAddr::from((ip, 0)))?;
     s.set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-    let s = UdpSocket::from_std(s, &Handle::current())?;
+    let s = UdpSocket::from_std(s, &Handle::default())?;
     let (s, _b) = await!(s.send_dgram(data, &addr))?;
     let buf = vec![0; 998];
     let (_s, b, nb, _a) = await!(s.recv_dgram(buf))?;

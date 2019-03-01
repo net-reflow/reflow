@@ -73,9 +73,9 @@ fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Bytes, Vec<Dir
 
 fn extract_name(filename: &str, prefix: &str)-> Option<Bytes> {
     if !filename.starts_with(prefix) { return None; }
-    let rest = filename.trim_left_matches(prefix);
+    let rest = filename.trim_start_matches(prefix);
     if !rest.starts_with(".") { return None; }
-    let rest = rest.trim_left_matches(".");
+    let rest = rest.trim_start_matches(".");
     if rest.len() < 1 { return  None; }
     Some(rest.into())
 }

@@ -59,7 +59,7 @@ async fn carry_out(
         RoutingAction::Named(ref g) => match g.val().addr() {
             EgressAddr::From(ip) => {
                 let x = bind_tcp_socket(ip)?;
-                await!(tokio::net::TcpStream::connect_std(x, &a, &Handle::current()))
+                await!(tokio::net::TcpStream::connect_std(x, &a, &Handle::default()))
                     .map_err(|e| format_err!("Error making direct {:?} connection to {:?} from {:?}: {}", &pr, a, ip, e))
             },
             EgressAddr::Socks5(x)=> {

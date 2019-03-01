@@ -55,7 +55,7 @@ impl SmartResolver {
 
     fn choose_resolver(&self,name: &LowerName)-> &DnsClient {
         let n = name.to_string();
-        let n: Vec<&str> = n.trim_right_matches('.').split('.').rev().collect();
+        let n: Vec<&str> = n.trim_end_matches('.').split('.').rev().collect();
         let d = n.join(".");
         let r = self.router.rule_domain(d.as_bytes());
         if let Some(region) = r {
