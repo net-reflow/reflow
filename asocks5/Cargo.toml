@@ -14,3 +14,6 @@ net2 = "^0.2"
 tokio = { version="^0.1.7", features = ["async-await-preview"] }
 tokio-async-await = "0.1.0"
 tokio-io = "^0.1"
+
+[dev-dependencies]
+structopt = "*"
