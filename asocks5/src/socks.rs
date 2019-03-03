@@ -110,19 +110,13 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, S
         consts::AddrType::DomainName => {
             // domain and port
             let length = await!(read_exact(&mut stream, [0u8; 1]))?.1[0];
-            let addr_len = length as usize - 2;
-            let mut raw_addr= vec![];
-            raw_addr.resize(addr_len + 2, 0);
-            let (_s, mut raw_addr) = await!(read_exact(&mut stream, raw_addr))?;
+            let addr_len = length as usize;
+            let mut raw_addr= [0u8; 257];
+            await!(read_exact(&mut stream, &mut raw_addr[..addr_len+2]))?;
             let mut cursor = io::Cursor::new(&raw_addr[addr_len..]);
             let port = cursor.read_u16::<BigEndian>()?;
-            raw_addr.resize(addr_len, 0);
-            let addr = match String::from_utf8(raw_addr) {
-                Ok(addr) => addr,
-                Err(..) => return Err(SocksError::InvalidDomainEncoding),
-            };
-
-            let addr = Address::DomainNameAddress(addr, port);
+            let addr = String::from_utf8_lossy(&raw_addr[..addr_len]);
+            let addr = Address::DomainNameAddress(addr.into(), port);
             Ok(addr)
         }
     }
