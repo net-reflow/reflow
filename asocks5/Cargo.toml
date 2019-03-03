@@ -17,3 +17,4 @@ tokio-io = "^0.1"
 
 [dev-dependencies]
 structopt = "*"
+trust-dns-resolver = "*"
