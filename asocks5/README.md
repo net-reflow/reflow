@@ -38,7 +38,16 @@ The server has a similar design, you just use tokio to create a tcp listener:
 And when you get a connection, you again call one function to do the handshake:
 
     let (client_stream, request) = await!(handle_socks_handshake(client_stream))?;    
-    
+
+##### Add dependency in cargo
+
+Just add the git url:
+
+    [dependencies.asocks5]
+    git = "https://github.com/net-reflow/reflow"
+
+And cargo will find this crate. You can also [specify branch or revision](https://github.com/rust-lang/cargo/issues/126#issuecomment-48101852).
+
 ##### Other features
 
 Sending and receiving udp packets is implemented.
