@@ -1,10 +1,9 @@
-use futures::Future;
-use trust_dns_resolver::ResolverFuture;
+use trust_dns_resolver::AsyncResolver;
 use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::config::{NameServerConfig, Protocol};
 use crate::conf::NameServerRemote;
 
-pub fn create_resolver(rm: NameServerRemote) -> ResolverFuture {
+pub fn create_resolver(rm: NameServerRemote) -> AsyncResolver {
     let (addr, p) = match rm {
         NameServerRemote::Udp(a) => (a, Protocol::Udp),
         NameServerRemote::Tcp(a) => (a, Protocol::Tcp),
@@ -15,6 +14,7 @@ pub fn create_resolver(rm: NameServerRemote) -> ResolverFuture {
         tls_dns_name: None,
     };
     let conf = ResolverConfig::from_parts(None, vec![], vec![nc]);
-    let r = ResolverFuture::new(conf, ResolverOpts::default());
-    r.wait().expect("Can't get ResolverFuture")
+    let (resolver, fut) = AsyncResolver::new(conf, ResolverOpts::default());
+    tokio::spawn(fut);
+    resolver
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use failure::Error;
 use tokio;
 use tokio::prelude::*;
-use trust_dns_resolver::ResolverFuture;
+use trust_dns_resolver::AsyncResolver;
 
 use crate::relay::forwarding::handle_incoming_tcp;
 use tokio::net::TcpStream;
@@ -14,7 +14,7 @@ use crate::relay::TcpRouter;
 use asocks5::listen::handle_socks_handshake;
 use asocks5::Command;
 
-pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Arc<TcpRouter>)->Result<(), Error >{
+pub fn listen_socks(addr: &SocketAddr, resolver: Arc<AsyncResolver>, router: Arc<TcpRouter>)->Result<(), Error >{
     let l = tokio::net::TcpListener::bind(addr)?;
     let mut l = l.incoming();
     tokio::spawn_async(async move{
@@ -41,7 +41,7 @@ pub fn listen_socks(addr: &SocketAddr, resolver: Arc<ResolverFuture>, router: Ar
 
 async fn handle_client(
     s: TcpStream,
-    res: Arc<ResolverFuture>,
+    res: Arc<AsyncResolver>,
     rt: Arc<TcpRouter>,
 ) -> Result<(), Error>
 {
@@ -50,7 +50,7 @@ async fn handle_client(
     await!(handle_incoming_tcp(s, a, rt))
 }
 
-async fn read_address(head: TcpRequestHeader, resolver: Arc<ResolverFuture>)
+async fn read_address(head: TcpRequestHeader, resolver: Arc<AsyncResolver>)
     -> Result<SocketAddr, Error> {
     let c = head.command;
     if c != Command::TcpConnect {
