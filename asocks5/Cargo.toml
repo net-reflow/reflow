@@ -8,12 +8,12 @@ edition = "2018"
 byteorder = "1.2.3"
 bytes = "^0.4"
 failure = "0.1.1"
-futures = "0.1.23"
 log = "^0.4"
 net2 = "^0.2"
-tokio = { version="^0.1.7", features = ["async-await-preview"] }
-tokio-async-await = "0.1.0"
 tokio-io = "^0.1"
+futures-util-preview = "0.2.2"
+futures-preview =  { version = "0.3.0-alpha.16", features = ["compat"] }
+tokio = { version = "^0.1.18" }
 
 [dev-dependencies]
 structopt = "*"

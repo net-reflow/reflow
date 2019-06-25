@@ -6,38 +6,41 @@ extern crate bytes;
 #[macro_use]
 extern crate failure;
 #[macro_use]
-extern crate futures;
+extern crate futures01;
 extern crate httparse;
 #[macro_use]
 extern crate log;
 extern crate net2;
 #[macro_use]
 extern crate nom;
-#[macro_use] extern crate structopt;
+#[macro_use]
+extern crate structopt;
 #[macro_use]
 extern crate tokio;
+extern crate core;
+extern crate env_logger;
 extern crate tokio_io;
 extern crate treebitmap;
 extern crate trust_dns;
 extern crate trust_dns_resolver;
-extern crate env_logger;
-extern crate core;
 
-use futures::future;
-use futures::Future;
 use structopt::StructOpt;
-use tokio::runtime::Runtime;
 
+mod cmd_options;
+mod conf;
 mod relay;
 mod resolver;
-mod conf;
-mod cmd_options;
 pub mod util;
 
-use crate::relay::run_with_conf;
 use crate::conf::load_conf;
+use crate::relay::run_with_conf;
+use futures::executor::ThreadPool;
+use futures::Future;
+use futures::task::Context;
+use std::task::Poll;
+use std::pin::Pin;
 
-pub fn run()-> Result<(), i32> {
+pub fn run() -> Result<(), i32> {
     env_logger::Builder::from_default_env()
         .default_format_timestamp(false)
         .init();
@@ -55,27 +58,40 @@ pub fn run()-> Result<(), i32> {
             return Err(100);
         }
     };
-    let mut rt = Runtime::new().expect("Tokio Runtime failed to run");
-    rt.spawn( future::lazy(move || {
+    let mut pool = ThreadPool::new().map_err(|e| {
+        error!("Error in ThreadPool: {}", e);
+        101
+    })?;
+    let p1 = pool.clone();
+    pool.run(async move {
         for r in conf.relays {
             info!("Starting {}", r);
-            if let Err(e) = run_with_conf(r,
-                                          conf.domain_matcher.clone(),
-                                          conf.ip_matcher.clone(),
+            if let Err(e) = run_with_conf(
+                r,
+                conf.domain_matcher.clone(),
+                conf.ip_matcher.clone(),
+                p1.clone(),
             ) {
                 error!("Relay error: {:?}", e);
             }
         }
-
         if let Some(dns) = conf.dns {
             info!("Starting dns proxy");
-            let ds = resolver::serve(dns, conf.domain_matcher.clone());
+            let ds = resolver::serve(dns, conf.domain_matcher.clone(), p1);
             if let Err(e) = ds {
                 error!("Dns server error: {:?}", e);
             }
         }
-        Ok::<_, ()>(())
-    }));
-    rt.shutdown_on_idle().wait().expect("Can't wait tokio runtime");
+        Forever().await
+    });
     Ok(())
+}
+
+struct Forever();
+impl Future for Forever {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Self::Output> {
+        Poll::Pending
+    }
 }

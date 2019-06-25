@@ -1,28 +1,35 @@
-use bytes::BufMut;
-use std::net::SocketAddrV4;
-use std::io::Cursor;
-use std::io::Write;
-use byteorder::BigEndian;
-use byteorder::WriteBytesExt;
-use byteorder::ReadBytesExt;
-use std::net::SocketAddrV6;
-use std::net::SocketAddr;
-use crate::socks::Address;
 use crate::consts;
-use std::io::Read;
+use crate::socks::Address;
 use crate::socks::SocksError;
+use byteorder::BigEndian;
+use byteorder::ReadBytesExt;
+use byteorder::WriteBytesExt;
+use bytes::BufMut;
 use std::convert::TryInto;
+use std::io::Cursor;
+use std::io::Read;
+use std::io::Write;
+use std::net::SocketAddr;
+use std::net::SocketAddrV4;
+use std::net::SocketAddrV6;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 pub fn write_address<B: BufMut>(addr: &Address, buf: &mut B) {
     match *addr {
-        Address::SocketAddress(sa) => {
-            match sa {
-                SocketAddr::V4(ref addr) => write_ipv4_address(addr, buf),
-                SocketAddr::V6(ref addr) => write_ipv6_address(addr, buf),
-            }
+        Address::SocketAddress(sa) => match sa {
+            SocketAddr::V4(ref addr) => write_ipv4_address(addr, buf),
+            SocketAddr::V6(ref addr) => write_ipv6_address(addr, buf),
+        },
+        Address::DomainNameAddress(ref dnaddr, ref port) => {
+            write_domain_name_address(dnaddr, *port, buf)
         }
-        Address::DomainNameAddress(ref dnaddr, ref port) => write_domain_name_address(dnaddr, *port, buf),
+    }
+}
+
+pub fn write_address_sa<B: BufMut>(addr: &SocketAddr, buf: &mut B) {
+    match addr {
+        SocketAddr::V4(ref addr) => write_ipv4_address(addr, buf),
+        SocketAddr::V6(ref addr) => write_ipv6_address(addr, buf),
     }
 }
 
@@ -63,7 +70,7 @@ fn write_domain_name_address<B: BufMut>(dnaddr: &str, port: u16, buf: &mut B) {
 
 pub fn read_address<R: Read>(stream: &mut R) -> Result<Address, SocksError> {
     let mut b = [0u8; 1];
-    stream.read_exact( &mut b)?;
+    stream.read_exact(&mut b)?;
     let addr_type: consts::AddrType = b[0].try_into()?;
     match addr_type {
         consts::AddrType::IPV4 => {
@@ -78,7 +85,8 @@ pub fn read_address<R: Read>(stream: &mut R) -> Result<Address, SocksError> {
             let v6addr = Ipv6Addr::from(buf);
             let port = stream.read_u16::<BigEndian>()?;
 
-            let addr = Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));
+            let addr =
+                Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));
             Ok(addr)
         }
         consts::AddrType::DomainName => {
@@ -86,7 +94,7 @@ pub fn read_address<R: Read>(stream: &mut R) -> Result<Address, SocksError> {
             stream.read_exact(&mut b)?;
             let length = b[0] as usize;
             let addr_len = length - 2;
-            let mut raw_addr= vec![];
+            let mut raw_addr = vec![];
             raw_addr.resize(addr_len, 0);
             stream.read_exact(&mut raw_addr)?;
             let port = stream.read_u16::<BigEndian>()?;
@@ -99,4 +107,3 @@ pub fn read_address<R: Read>(stream: &mut R) -> Result<Address, SocksError> {
         }
     }
 }
-

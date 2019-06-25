@@ -1,15 +1,13 @@
 use std::io;
 use std::time;
 
-use futures::{Future, Poll};
-use tokio::timer::Delay;
+use futures01::{Async, Future, Poll as Poll1};
+use futures_timer::Delay;
 use tokio_io::{AsyncRead, AsyncWrite};
-use futures::Async;
 
 /// A future which will copy all data from a reader into a writer.
 /// modified version of Copy from tokio
 /// prints more verbose logs
-#[derive(Debug)]
 pub struct CopyVerboseTime<R, W> {
     reader: Option<R>,
     read_done: bool,
@@ -37,11 +35,11 @@ pub enum CopyError {
 }
 
 impl CopyError {
-    pub fn is_read(&self)-> bool {
+    pub fn is_read(&self) -> bool {
         match self {
             &CopyError::ReadError { err: _ } => true,
             &CopyError::ReadTimeout => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -58,8 +56,9 @@ impl CopyError {
 /// consumed. On error the error is returned and the I/O objects are consumed as
 /// well.
 pub fn copy_verbose<R, W>(reader: R, writer: W) -> CopyVerboseTime<R, W>
-    where R: AsyncRead,
-          W: AsyncWrite,
+where
+    R: AsyncRead,
+    W: AsyncWrite,
 {
     CopyVerboseTime {
         reader: Some(reader),
@@ -75,13 +74,14 @@ pub fn copy_verbose<R, W>(reader: R, writer: W) -> CopyVerboseTime<R, W>
 }
 
 impl<R, W> Future for CopyVerboseTime<R, W>
-    where R: AsyncRead,
-          W: AsyncWrite,
+where
+    R: AsyncRead,
+    W: AsyncWrite,
 {
     type Item = (u64, R, W);
     type Error = CopyError;
 
-    fn poll(&mut self) -> Poll<(u64, R, W), CopyError> {
+    fn poll(&mut self) -> Poll1<(u64, R, W), CopyError> {
         loop {
             // If our buffer is empty, then we need to read some data to
             // continue.
@@ -89,12 +89,13 @@ impl<R, W> Future for CopyVerboseTime<R, W>
                 let r = {
                     let reader = self.reader.as_mut().unwrap();
                     reader.poll_read(&mut self.buf)
-                }.map_err(|e| CopyError::ReadError { err: e } )?;
+                }
+                .map_err(|e| CopyError::ReadError { err: e })?;
                 let n = match r {
                     Async::Ready(x) => {
                         self.clear_timer();
                         x
-                    },
+                    }
                     Async::NotReady => {
                         self.test_timeout()?;
                         return Ok(Async::NotReady);
@@ -113,7 +114,8 @@ impl<R, W> Future for CopyVerboseTime<R, W>
                 let w = {
                     let writer = self.writer.as_mut().unwrap();
                     writer.poll_write(&self.buf[self.pos..self.cap])
-                }.map_err(|e| CopyError::WriteError { err: e});
+                }
+                .map_err(|e| CopyError::WriteError { err: e });
                 let i = try_ready!(w);
                 if i == 0 {
                     return Err(CopyError::WriteZero);
@@ -127,24 +129,29 @@ impl<R, W> Future for CopyVerboseTime<R, W>
             // data and finish the transfer.
             // done with the entire transfer.
             if self.pos == self.cap && self.read_done {
-                try_ready!(self.writer.as_mut().unwrap().poll_flush().map_err(|e| {
-                    CopyError::FlushError { err: e}
-                }));
+                try_ready!(self
+                    .writer
+                    .as_mut()
+                    .unwrap()
+                    .poll_flush()
+                    .map_err(|e| { CopyError::FlushError { err: e } }));
                 let reader = self.reader.take().unwrap();
                 let writer = self.writer.take().unwrap();
-                return Ok((self.amt, reader, writer).into())
+                return Ok((self.amt, reader, writer).into());
             }
         }
     }
 }
 
 impl<R, W> CopyVerboseTime<R, W>
-    where R: AsyncRead,
-          W: AsyncWrite,
+where
+    R: AsyncRead,
+    W: AsyncWrite,
 {
     fn test_timeout(&mut self) -> Result<(), CopyError> {
         if self.timer.is_none() {
-            self.timer = Some(Delay::new(time::Instant::now() + self.timeout));
+            let d = Delay::new(self.timeout);
+            self.timer = Some(d);
         }
         if let Some(ref mut t) = self.timer {
             match t.poll().unwrap() {
@@ -158,5 +165,4 @@ impl<R, W> CopyVerboseTime<R, W>
     fn clear_timer(&mut self) {
         let _ = self.timer.take();
     }
-
 }

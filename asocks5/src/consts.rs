@@ -1,10 +1,10 @@
-
 use std::convert::TryFrom;
 
 use super::socks::SocksError;
 
-pub const SOCKS5_VERSION:                          u8 = 0x05;
+pub const SOCKS5_VERSION: u8 = 0x05;
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum AuthMethod {
     NONE = 0x00,
@@ -48,7 +48,7 @@ impl TryFrom<u8> for AddrType {
             1 => Ok(AddrType::IPV4),
             3 => Ok(AddrType::DomainName),
             4 => Ok(AddrType::IPV6),
-            v => Err(SocksError::AddressTypeNotSupported {code: v})
+            v => Err(SocksError::AddressTypeNotSupported { code: v }),
         }
     }
 }
@@ -79,9 +79,9 @@ impl TryFrom<u8> for Reply {
             4 => HostUnreachable,
             5 => ConnectionRefused,
             6 => TtlExpired,
-            7 => CommandNotSupported ,
+            7 => CommandNotSupported,
             8 => AddressTypeNotSupported,
-            x => return Err(SocksError::InvalidReply { reply: x})
+            x => return Err(SocksError::InvalidReply { reply: x }),
         };
         Ok(r)
     }

@@ -1,20 +1,20 @@
-use log::{warn, trace};
-use tokio::await;
-use tokio::net::{UdpSocket, TcpStream};
-use std::net::{self, SocketAddr};
-use crate::socks::SocksError;
-use crate::socks::Address;
-use std::net::SocketAddrV4;
-use std::net::Ipv4Addr;
 use crate::client::connect_socks_udp;
-use std::io;
-use bytes::{BytesMut, BufMut};
-use crate::codec::write_address;
 use crate::codec::read_address;
+use crate::codec::write_address;
+use crate::socks::Address;
+use crate::socks::SocksError;
 use byteorder::ReadBytesExt;
-use std::time::Duration;
-use tokio::reactor::Handle;
+use bytes::{BufMut, BytesMut};
+use futures::compat::Future01CompatExt;
+use log::{trace, warn};
+use std::io;
 use std::io::Read;
+use std::net::Ipv4Addr;
+use std::net::SocketAddrV4;
+use std::net::{self, SocketAddr};
+use std::time::Duration;
+use tokio::net::{TcpStream, UdpSocket};
+use tokio::reactor::Handle;
 
 #[derive(Debug)]
 pub struct Socks5Datagram {
@@ -30,26 +30,33 @@ impl Socks5Datagram {
     pub async fn bind_with_timeout(
         proxy: SocketAddr,
         local: SocketAddr,
-        time: Option<Duration>) -> Result<Socks5Datagram, SocksError> {
+        time: Option<Duration>,
+    ) -> Result<Socks5Datagram, SocksError> {
         // we don't know what our IP is from the perspective of the proxy, so
         // don't try to pass `addr` in here.
-        let dst = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0)));
-        let mut stream = await!(TcpStream::connect(&proxy))?;
+        let dst = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(
+            Ipv4Addr::new(0, 0, 0, 0),
+            0,
+        )));
+        let mut stream = await!(TcpStream::connect(&proxy).compat())?;
         let proxy_addr: Address = await!(connect_socks_udp(&mut stream, dst))?;
         let proxy_addr = match proxy_addr {
             Address::SocketAddress(a) => a,
             // I don't think a socks proxy will ever return a domain name in this case
             Address::DomainNameAddress(d, p) => {
-                warn!("Received domain name address when connecting udp over socks: {}:{}", d, p);
-                return Err(SocksError::ProtocolIncorrect)
-            },
+                warn!(
+                    "Received domain name address when connecting udp over socks: {}:{}",
+                    d, p
+                );
+                return Err(SocksError::ProtocolIncorrect);
+            }
         };
         let socket = net::UdpSocket::bind(&local)?;
         if time.is_some() {
             socket.set_read_timeout(time)?;
         }
 
-        let socket = UdpSocket::from_std(socket, &Handle::current())?;
+        let socket = UdpSocket::from_std(socket, &Handle::default())?;
 
         Ok(Socks5Datagram {
             socket: socket,
@@ -59,13 +66,14 @@ impl Socks5Datagram {
     }
 
     pub async fn send_to(self, d: &[u8], addr: Address) -> io::Result<Socks5Datagram> {
-        let mut buf = BytesMut::with_capacity((&addr).len()+3+d.len());
-        buf.put_slice(&[0, 0, // reserved
+        let mut buf = BytesMut::with_capacity((&addr).len() + 3 + d.len());
+        buf.put_slice(&[
+            0, 0, // reserved
             0, // fragment id
         ]);
         write_address(&addr, &mut buf);
         buf.put_slice(d);
-        let (s, _b) = await!(self.socket.send_dgram(buf, &self.proxy_addr))?;
+        let (s, _b) = await!(self.socket.send_dgram(buf, &self.proxy_addr).compat())?;
         let new_self = Socks5Datagram {
             socket: s,
             proxy_addr: self.proxy_addr,
@@ -74,11 +82,10 @@ impl Socks5Datagram {
         Ok(new_self)
     }
 
-    pub async fn recv_from(self, buf: &mut [u8])
-        -> Result<(Address, usize), SocksError> {
-        let mut header:Vec<u8> = vec![];
+    pub async fn recv_from(self, buf: &mut [u8]) -> Result<(Address, usize), SocksError> {
+        let mut header: Vec<u8> = vec![];
         header.resize(998, 0);
-        let (_socket, header, len, addr) = await!(self.socket.recv_dgram(&mut header))?;
+        let (_socket, header, len, addr) = await!(self.socket.recv_dgram(&mut header).compat())?;
         trace!("received dgram with {} bytes from {:?}", len, addr);
         header.resize(len, 0);
         trace!("dgram {:?}", header);
@@ -87,11 +94,17 @@ impl Socks5Datagram {
         let mut rb = [0u8; 2];
         cursor.read_exact(&mut rb)?;
         if rb[0] != 0 || rb[1] != 0 {
-            return Err(SocksError::InvalidData { msg: "invalid reserved bytes", data: rb.to_vec()});
+            return Err(SocksError::InvalidData {
+                msg: "invalid reserved bytes",
+                data: rb.to_vec(),
+            });
         }
         let frag = cursor.read_u8()?;
         if frag != 0 {
-            return Err(SocksError::InvalidData { msg: "invalid fragment id", data: vec![frag]});
+            return Err(SocksError::InvalidData {
+                msg: "invalid fragment id",
+                data: vec![frag],
+            });
         }
         let a = read_address(&mut cursor)?;
         trace!("read address {:?} with length {}", a, a.len());

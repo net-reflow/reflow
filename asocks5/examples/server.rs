@@ -1,38 +1,46 @@
 #![feature(await_macro, async_await)]
 #![feature(futures_api)]
 
-use tokio::await;
-
-use std::net::{SocketAddr, Ipv4Addr, IpAddr};
-use failure::{Error, format_err};
-use tokio;
-use tokio::prelude::*;
-use tokio_io::io::{write_all, read};
-use tokio::net::TcpStream;
-use asocks5::socks::Address;
 use asocks5::listen::handle_socks_handshake;
+use asocks5::socks::Address;
 use asocks5::Command;
+use failure::{format_err, Error};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use structopt::StructOpt;
+use tokio;
+use tokio::net::TcpStream;
+use tokio::prelude::*;
+use tokio_io::io::{read, write_all};
 use trust_dns_resolver::AsyncResolver;
 
+use futures::compat::Future01CompatExt;
+use futures::executor::LocalPool;
+
+use futures::task::SpawnExt;
+
 // the main function is actually no different from any ordinary tcp server
-fn main()->Result<(), Error >{
+fn main() -> Result<(), Error> {
     println!("Async socks server");
     let opt: Opt = Opt::from_args();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), opt.port);
     println!("listening on {:?}", addr);
     let listner = tokio::net::TcpListener::bind(&addr)?;
-    tokio::run_async(async move{
-        let result = await!(listner.incoming().for_each(|s| {
-            let peer = s.peer_addr().expect("socket peer address");
-            println!("got tcp connection from {:?}", peer);
-            tokio::spawn_async(async move {
-                if let Err(e) = await!(handle_client(s)) {
-                    eprintln!("error handling client {}", e);
-                };
-            });
-            Ok(())
-        }));
+    let mut executor = LocalPool::new();
+    let mut spawner = executor.spawner();
+    executor.run_until(async move {
+        let result = await!(listner
+            .incoming()
+            .for_each(|s| {
+                let peer = s.peer_addr().expect("socket peer address");
+                println!("got tcp connection from {:?}", peer);
+                spawner.spawn(async move {
+                    if let Err(e) = await!(handle_client(s)) {
+                        eprintln!("error handling client {}", e);
+                    };
+                });
+                Ok(())
+            })
+            .compat());
         if let Err(e) = result {
             eprintln!("error running TcpListener {:?}", e);
         }
@@ -52,38 +60,39 @@ async fn handle_client(client_stream: TcpStream) -> Result<(), Error> {
 
     let addr = await!(resolve_address(req.address))?;
     println!("connecting to remote target {:?}", addr);
-    let target_stream = await!(TcpStream::connect(&addr))?;
+    let target_stream = await!(TcpStream::connect(&addr).compat())?;
 
     // to create a useful socks server, you probably want to run loops
     // but this is just a simple example
 
     println!("reading payload from client");
     let mut buf = [0u8; 2048];
-    let (_s, buf, n) = await!(read(&client_stream, &mut buf[..]))?;
+    let (_s, buf, n) = await!(read(&client_stream, &mut buf[..]).compat())?;
     println!("forwarding {} bytes to target server", n);
-    await!(write_all(&target_stream, &buf[..n]))?;
+    await!(write_all(&target_stream, &buf[..n]).compat())?;
     println!("reading reply from target server");
-    let (_s, buf, n) = await!(read(&target_stream, &mut buf[..]))?;
+    let (_s, buf, n) = await!(read(&target_stream, &mut buf[..]).compat())?;
     println!("forwarding reply to client");
-    await!(write_all(client_stream, &buf[..n]))?;
+    await!(write_all(client_stream, &buf[..n]).compat())?;
     Ok(())
 }
 
-async fn resolve_address(address: Address)-> Result<SocketAddr, Error> {
+async fn resolve_address(address: Address) -> Result<SocketAddr, Error> {
     match address {
         Address::SocketAddress(a) => return Ok(a),
         Address::DomainNameAddress(domain, port) => {
             println!("resolving remote address {}", domain);
             let (resolver, bg) = AsyncResolver::from_system_conf()?;
             tokio::spawn(bg);
-            let lookup = await!(resolver.lookup_ip(&*domain))?;
-            let ip = lookup.iter().next()
-                .ok_or_else(||format_err!("No address found for domain {}", domain))?;
+            let lookup = await!(resolver.lookup_ip(&*domain).compat())?;
+            let ip = lookup
+                .iter()
+                .next()
+                .ok_or_else(|| format_err!("No address found for domain {}", domain))?;
             Ok(SocketAddr::new(ip, port))
         }
     }
 }
-
 
 #[derive(StructOpt)]
 struct Opt {

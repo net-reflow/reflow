@@ -1,16 +1,16 @@
 #![feature(await_macro, async_await)]
-#![feature(futures_api)]
 
-mod consts;
-pub mod listen;
-mod heads;
-mod codec;
 mod client;
+mod codec;
+mod consts;
+mod heads;
+pub mod listen;
 pub mod socks;
 
-pub use self::consts::Command;
+pub use self::client::connect_socks_socket_addr;
 pub use self::client::connect_socks_to;
 pub use self::client::udp::Socks5Datagram;
+pub use self::consts::Command;
 
 #[cfg(test)]
 mod tests {
