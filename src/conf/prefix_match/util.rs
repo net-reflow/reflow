@@ -1,10 +1,10 @@
-use std::io::{self};
-use std::fs::{self, DirEntry};
-use std::collections::HashMap;
-use std::path;
 use bytes::Bytes;
+use std::collections::HashMap;
+use std::fs::{self, DirEntry};
+use std::io;
+use std::path;
 
-pub fn find_domain_map_files(config: &path::Path)->io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+pub fn find_domain_map_files(config: &path::Path) -> io::Result<HashMap<Bytes, Vec<DirEntry>>> {
     let p = config.join("namezone");
     let mut m = if p.exists() {
         find_map_files(&p)?
@@ -15,7 +15,7 @@ pub fn find_domain_map_files(config: &path::Path)->io::Result<HashMap<Bytes, Vec
     merge_map_vec_value(&mut m, m1);
     Ok(m)
 }
-pub fn find_addr_map_files(config: &path::Path)->io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+pub fn find_addr_map_files(config: &path::Path) -> io::Result<HashMap<Bytes, Vec<DirEntry>>> {
     let p = config.join("addrzone");
     let mut m = if p.exists() {
         find_map_files(&p)?
@@ -26,7 +26,7 @@ pub fn find_addr_map_files(config: &path::Path)->io::Result<HashMap<Bytes, Vec<D
     merge_map_vec_value(&mut m, m1);
     Ok(m)
 }
-fn find_map_files(path: &path::Path)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+fn find_map_files(path: &path::Path) -> io::Result<HashMap<Bytes, Vec<DirEntry>>> {
     let mut m = HashMap::new();
     for entry in fs::read_dir(path)? {
         let entry = entry?;
@@ -45,8 +45,8 @@ fn find_map_files(path: &path::Path)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>
 }
 /// merge two HashMaps whose values are both vectors
 fn merge_map_vec_value(m0: &mut HashMap<Bytes, Vec<DirEntry>>, m1: HashMap<Bytes, Vec<DirEntry>>) {
-    for (k,v) in m1.into_iter() {
-        if m0.get(&k).is_some()  {
+    for (k, v) in m1.into_iter() {
+        if m0.get(&k).is_some() {
             m0.get_mut(&k).unwrap().extend(v);
         } else {
             m0.insert(k, v);
@@ -54,7 +54,7 @@ fn merge_map_vec_value(m0: &mut HashMap<Bytes, Vec<DirEntry>>, m1: HashMap<Bytes
     }
 }
 /// deprecated
-fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Bytes, Vec<DirEntry>>>{
+fn find_confs(path: &path::Path, kind: &str) -> io::Result<HashMap<Bytes, Vec<DirEntry>>> {
     let mut region_map = HashMap::new();
     for entry in fs::read_dir(path)? {
         let file = entry?;
@@ -71,34 +71,47 @@ fn find_confs(path: &path::Path, kind: &str)-> io::Result<HashMap<Bytes, Vec<Dir
     Ok(region_map)
 }
 
-fn extract_name(filename: &str, prefix: &str)-> Option<Bytes> {
-    if !filename.starts_with(prefix) { return None; }
+fn extract_name(filename: &str, prefix: &str) -> Option<Bytes> {
+    if !filename.starts_with(prefix) {
+        return None;
+    }
     let rest = filename.trim_start_matches(prefix);
-    if !rest.starts_with(".") { return None; }
+    if !rest.starts_with(".") {
+        return None;
+    }
     let rest = rest.trim_start_matches(".");
-    if rest.len() < 1 { return  None; }
+    if rest.len() < 1 {
+        return None;
+    }
     Some(rest.into())
 }
 
-fn find_dir_entris(dir: DirEntry)-> io::Result<Vec<DirEntry>> {
+fn find_dir_entris(dir: DirEntry) -> io::Result<Vec<DirEntry>> {
     let readdir = fs::read_dir(dir.path())?;
-    let entries = readdir.filter_map(|entry| {
-        let file = entry.unwrap();
-        let file_type = file.file_type().unwrap();
-        if file_type.is_file() || file_type.is_symlink() {
-            Some(file)
-        } else {
-            None
-        }
-    }).collect();
+    let entries = readdir
+        .filter_map(|entry| {
+            let file = entry.unwrap();
+            let file_type = file.file_type().unwrap();
+            if file_type.is_file() || file_type.is_symlink() {
+                Some(file)
+            } else {
+                None
+            }
+        })
+        .collect();
     Ok(entries)
 }
 
-pub fn lines_without_comments(bytes: &[u8])->impl Iterator<Item=&[u8]> {
+pub fn lines_without_comments(bytes: &[u8]) -> impl Iterator<Item = &[u8]> {
     bytes
         .split(|&x| x == b'\r' || x == b'\n')
         .map(|line: &[u8]| {
-        line.split(|&x| x == b'#').next().unwrap_or(b"")
-            .split(|x| x.is_ascii_whitespace()).next().unwrap_or(b"")
-    }).filter(|l| l.len() > 0)
+            line.split(|&x| x == b'#')
+                .next()
+                .unwrap_or(b"")
+                .split(|x| x.is_ascii_whitespace())
+                .next()
+                .unwrap_or(b"")
+        })
+        .filter(|l| l.len() > 0)
 }

@@ -1,19 +1,19 @@
 //! the routing is configured using a tree-like structure
 
+use bytes::Bytes;
+use failure::Error;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fmt::{Formatter};
+use std::fmt::Formatter;
 use std::mem;
-use failure::Error;
-use bytes::Bytes;
 
 mod text;
 
-use crate::relay::route::TcpTrafficInfo;
-pub use self::text::var_name;
 pub use self::text::read_branch;
-use crate::conf::Egress;
+pub use self::text::var_name;
 use crate::conf::main::RefVal;
+use crate::conf::Egress;
+use crate::relay::route::TcpTrafficInfo;
 use crate::util::BsDisp;
 
 #[derive(Clone)]
@@ -23,12 +23,11 @@ pub enum RoutingBranch {
     Sequential(Vec<RoutingBranch>),
     Conditional(RoutingCondition),
     /// a match is found
-    Final(RoutingAction)
+    Final(RoutingAction),
 }
 
-
 impl RoutingBranch {
-    pub fn decision(&self, info: &TcpTrafficInfo)-> Option<RoutingAction> {
+    pub fn decision(&self, info: &TcpTrafficInfo) -> Option<RoutingAction> {
         use self::RoutingBranch::*;
         match self {
             Final(d) => Some(d.clone()),
@@ -36,7 +35,7 @@ impl RoutingBranch {
             Sequential(s) => {
                 for r in s {
                     if let Some(d) = r.decision(info) {
-                        return Some(d)
+                        return Some(d);
                     }
                 }
                 None
@@ -44,16 +43,14 @@ impl RoutingBranch {
         }
     }
 
-    fn new_final(x: RoutingAction)-> RoutingBranch {
+    fn new_final(x: RoutingAction) -> RoutingBranch {
         RoutingBranch::Final(x)
     }
 
     pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Egress>) -> Result<(), Error> {
         use self::RoutingBranch::*;
         match self {
-            Final(ref mut d) =>{
-                d.insert_gateways(gw)?
-            }
+            Final(ref mut d) => d.insert_gateways(gw)?,
             Conditional(ref mut c) => c.insert_gateways(gw)?,
             Sequential(ref mut s) => {
                 for r in s {
@@ -74,7 +71,7 @@ pub enum RoutingCondition {
 }
 
 impl RoutingCondition {
-    fn decide(&self, info: &TcpTrafficInfo)-> Option<RoutingAction> {
+    fn decide(&self, info: &TcpTrafficInfo) -> Option<RoutingAction> {
         use self::RoutingCondition::*;
         match self {
             Domain(x) => {
@@ -82,7 +79,13 @@ impl RoutingCondition {
                 r.decision(info)
             }
             IpAddr(x) => x.get(info.ip_region()?)?.decision(info),
-            Port(x, y) => if info.addr().port() != *x { None } else { y.decision(info) },
+            Port(x, y) => {
+                if info.addr().port() != *x {
+                    None
+                } else {
+                    y.decision(info)
+                }
+            }
             Protocol(x) => x.get(info.protocol().name())?.decision(info),
         }
     }
@@ -97,7 +100,7 @@ impl RoutingCondition {
             IpAddr(x) => x,
             Protocol(x) => x,
         };
-        for (_k, v) in m {
+        for v in m.values_mut() {
             v.insert_gateways(gw)?;
         }
         Ok(())
@@ -119,16 +122,15 @@ impl RoutingAction {
     }
 
     pub fn insert_gateways(&mut self, gw: &BTreeMap<Bytes, Egress>) -> Result<(), Error> {
-        match self {
-            RoutingAction::Named(e) => {
-                if let Some(n) = e.get_ref() {
-                    let g = gw.get(&n)
-                        .ok_or_else(|| format_err!("Unknown gateway {:?}", n))?;
-                    mem::replace(e, RefVal::Val(g.clone()));
-                }
+        if let RoutingAction::Named(e) = self {
+            if let Some(n) = e.get_ref() {
+                let g = gw
+                    .get(&n)
+                    .ok_or_else(|| format_err!("Unknown gateway {:?}", n))?;
+                mem::replace(e, RefVal::Val(g.clone()));
             }
-            _ => {}
         }
+
         Ok(())
     }
 }
@@ -138,9 +140,9 @@ impl fmt::Display for RoutingBranch {
         use self::RoutingBranch::*;
         match self {
             Sequential(x) => {
-                write!(f, "[\n")?;
+                writeln!(f, "[")?;
                 for y in x {
-                    write!(f, "{}\n", y)?;
+                    writeln!(f, "{}", y)?;
                 }
                 write!(f, "]")?;
             }
@@ -156,9 +158,9 @@ impl fmt::Debug for RoutingBranch {
         use self::RoutingBranch::*;
         match self {
             Sequential(x) => {
-                write!(f, "any [\n")?;
+                writeln!(f, "any [")?;
                 for y in x {
-                    write!(f, "{:?}\n", y)?;
+                    writeln!(f, "{:?}", y)?;
                 }
                 write!(f, "]")?;
             }
@@ -173,10 +175,21 @@ impl fmt::Display for RoutingCondition {
     fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
         use self::RoutingCondition::*;
         match self {
-            Domain(ref m) => { write!(f, "domain ")?; print_mapping(m, f)?; }
-            IpAddr(ref m) => { write!(f, "ip ")?; print_mapping(m, f)?;}
-            Protocol(ref m) => { write!(f, "protocol ")?; print_mapping(m, f)?;}
-            Port(x, y) => { write!(f, "port eq {} => {}", x, y)?; }
+            Domain(ref m) => {
+                write!(f, "domain ")?;
+                print_mapping(m, f)?;
+            }
+            IpAddr(ref m) => {
+                write!(f, "ip ")?;
+                print_mapping(m, f)?;
+            }
+            Protocol(ref m) => {
+                write!(f, "protocol ")?;
+                print_mapping(m, f)?;
+            }
+            Port(x, y) => {
+                write!(f, "port eq {} => {}", x, y)?;
+            }
         }
         Ok(())
     }
@@ -187,23 +200,25 @@ impl fmt::Display for RoutingAction {
         use self::RoutingAction::*;
         match self {
             Direct => write!(f, "direct"),
-            Reset  => write!(f, "reset"),
+            Reset => write!(f, "reset"),
             Named(s) => {
                 let n = match s {
                     RefVal::Ref(n) => &n,
                     RefVal::Val(x) => &x.name,
                 };
                 write!(f, "{}", BsDisp::new(&n))
-            },
+            }
         }
     }
 }
 
-fn print_mapping(map: &BTreeMap<Bytes, RoutingBranch>, f: &mut Formatter)
-                 -> Result<(), fmt::Error> {
-    write!(f, "{{\n")?;
-    for (k,v) in map.iter() {
-        write!(f, "{:?} => {}\n", k, v)?;
+fn print_mapping(
+    map: &BTreeMap<Bytes, RoutingBranch>,
+    f: &mut Formatter,
+) -> Result<(), fmt::Error> {
+    writeln!(f, "{{")?;
+    for (k, v) in map.iter() {
+        writeln!(f, "{:?} => {}", k, v)?;
     }
     write!(f, "}}")?;
     Ok(())

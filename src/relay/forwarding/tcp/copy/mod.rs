@@ -37,8 +37,8 @@ pub enum CopyError {
 impl CopyError {
     pub fn is_read(&self) -> bool {
         match self {
-            &CopyError::ReadError { err: _ } => true,
-            &CopyError::ReadTimeout => true,
+            CopyError::ReadError { .. } => true,
+            CopyError::ReadTimeout => true,
             _ => false,
         }
     }

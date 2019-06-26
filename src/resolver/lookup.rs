@@ -1,10 +1,10 @@
-use trust_dns_resolver::AsyncResolver;
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
-use trust_dns_resolver::config::{NameServerConfig, Protocol};
 use crate::conf::NameServerRemote;
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 use futures::compat::Future01CompatExt;
+use trust_dns_resolver::config::{NameServerConfig, Protocol};
+use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+use trust_dns_resolver::AsyncResolver;
 
 pub fn create_resolver(rm: NameServerRemote,
                        mut pool: ThreadPool

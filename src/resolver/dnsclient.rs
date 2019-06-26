@@ -41,7 +41,7 @@ impl DnsClient {
     }
 
     pub async fn resolve(&self, data: Vec<u8>) -> Result<Vec<u8>, SocksError> {
-        return match self {
+        match self {
             DnsClient::ViaSocks5(s) => await!(s.get(data)),
             // FIXME these always use udp even when tcp is configured
             DnsClient::Direct(s) => {
@@ -52,16 +52,16 @@ impl DnsClient {
                 let vec = await!(udp_bind_get(*s, *i, data))?;
                 Ok(vec)
             }
-        };
+        }
     }
 }
 
 fn ns_sock_addr(ns: &NameServerRemote) -> SocketAddr {
     match ns {
-        NameServerRemote::Udp(a) => a.clone(),
+        NameServerRemote::Udp(a) => *a,
         NameServerRemote::Tcp(a) => {
             warn!("Dns over TCP isn't support yet even though it's configured");
-            a.clone()
+            *a
         }
     }
 }

@@ -24,7 +24,7 @@ pub fn run_with_conf(
     let rule = conf.rule.val().clone();
     // FIXME support proxy
     let ns = conf.nameserver_or_default();
-    if !ns.egress.is_none() {
+    if ns.egress.is_some() {
         error!("Resolver config in relay doesn't support proxy yet");
     }
     let resolver = Arc::new(create_resolver(ns.remote, pool.clone()));

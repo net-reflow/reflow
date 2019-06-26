@@ -3,7 +3,6 @@ use futures::compat::Future01CompatExt;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio;
-use tokio::prelude::*;
 use trust_dns_resolver::AsyncResolver;
 
 use crate::relay::forwarding::handle_incoming_tcp;
@@ -36,20 +35,24 @@ pub fn listen_socks(
         let r1 = resolver.clone();
         let rt1 = router.clone();
         let p1 = pool.clone();
-        pool.spawn(async move {
+        if let Err(e) = pool.spawn(async move {
             let _r = await!(handle_client(s, r1, rt1, p1)).map_err(|e| {
                 error!("error handling client {}", e);
             });
-        });
+        }) {
+            error!("error spawning {:?}", e);
+        }
         Ok(())
     });
-    p2.spawn(
+    if let Err(e) = p2.spawn(
         f.compat()
             .map_err(|e| {
                 error!("foreach error {}", e);
             })
             .then(|_| ready(())),
-    );
+    ) {
+        error!("spawn error {:?}", e);
+    }
     Ok(())
 }
 
@@ -73,7 +76,7 @@ async fn read_address(
         return Err(SocksError::CommandUnSupport { cmd: c as u8 }.into());
     }
     match head.address {
-        Address::SocketAddress(a) => return Ok(a),
+        Address::SocketAddress(a) => Ok(a),
         Address::DomainNameAddress(domain, port) => {
             let lookup = await!(resolver.lookup_ip(&*domain).compat())
                 .map_err(|e| format_err!("Error resolving {}: {}", domain, e))?;

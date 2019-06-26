@@ -132,7 +132,7 @@ async fn read_handshake_response(mut s: &mut TcpStream) -> Result<HandshakeRespo
 
     if ver != SOCKS5_VERSION {
         s.shutdown(Shutdown::Both)?;
-        return Err(SocksError::SocksVersionNoSupport { ver: ver });
+        return Err(SocksError::SocksVersionNoSupport { ver });
     }
     if cmet != AuthMethod::NONE as u8 {
         return Err(SocksError::NoSupportAuth);
@@ -180,5 +180,5 @@ fn command_request_packet(addr: SocketAddr, cmd: consts::Command) -> Bytes {
         0x00, // reserved
     ]);
     write_address_sa(&addr, &mut buf);
-    return buf.freeze();
+    buf.freeze()
 }

@@ -41,7 +41,7 @@ pub async fn read_command_async(
             peer
         ))?;
         s.shutdown(Shutdown::Both)?;
-        return Err(e.into());
+        return Err(e);
     }
     let cmd = cmd.unwrap();
     await!(write_command_response_async(&mut s, Reply::SUCCEEDED, peer))?;

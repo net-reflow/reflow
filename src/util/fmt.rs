@@ -8,7 +8,7 @@ use std::fmt;
 pub struct BsDisp<'a>(pub &'a [u8]);
 
 impl<'a> BsDisp<'a> {
-    pub fn new(bs: &'a[u8]) -> BsDisp<'a>{
+    pub fn new(bs: &'a [u8]) -> BsDisp<'a> {
         BsDisp(bs)
     }
 }
@@ -27,7 +27,7 @@ impl<'a> fmt::Display for BsDisp<'a> {
                 write!(fmt, "\\{}", c as char)?;
             } else if c == b'\0' {
                 write!(fmt, "\\0")?;
-                // ASCII printable
+            // ASCII printable
             } else if c >= 0x20 && c < 0x7f {
                 write!(fmt, "{}", c as char)?;
             } else {

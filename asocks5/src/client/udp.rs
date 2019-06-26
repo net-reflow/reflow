@@ -59,9 +59,9 @@ impl Socks5Datagram {
         let socket = UdpSocket::from_std(socket, &Handle::default())?;
 
         Ok(Socks5Datagram {
-            socket: socket,
+            socket,
             proxy_addr,
-            stream: stream,
+            stream,
         })
     }
 

@@ -1,5 +1,4 @@
 #![feature(await_macro, async_await)]
-#![feature(futures_api)]
 
 extern crate byteorder;
 extern crate bytes;
@@ -15,10 +14,8 @@ extern crate net2;
 extern crate nom;
 #[macro_use]
 extern crate structopt;
-#[macro_use]
-extern crate tokio;
-extern crate core;
 extern crate env_logger;
+extern crate tokio;
 extern crate tokio_io;
 extern crate treebitmap;
 extern crate trust_dns;

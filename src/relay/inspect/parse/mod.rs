@@ -1,10 +1,10 @@
-use bytes::BytesMut;
 use bytes::Bytes;
+use bytes::BytesMut;
 use httparse;
 
 mod tls;
 
-use self::tls::{TlsWithSni, parse_tls_sni};
+use self::tls::{parse_tls_sni, TlsWithSni};
 
 #[derive(Clone, Debug)]
 pub enum TcpProtocol {
@@ -26,7 +26,7 @@ impl TcpProtocol {
         }
     }
 
-    pub fn get_domain(&self)-> Option<&[u8]> {
+    pub fn get_domain(&self) -> Option<&[u8]> {
         use self::TcpProtocol::*;
         match &self {
             PlainHttp(x) => Some(&x.host),
@@ -43,26 +43,29 @@ pub struct HttpInfo {
 }
 
 impl HttpInfo {
-    pub fn new(h: &[u8], ua: Option<&[u8]>)-> HttpInfo {
-
+    pub fn new(h: &[u8], ua: Option<&[u8]>) -> HttpInfo {
         HttpInfo {
-            host: BytesMut::from( h).freeze(),
+            host: BytesMut::from(h).freeze(),
             user_agent: ua.map(|b| BytesMut::from(b).freeze()),
         }
     }
 }
 
-pub fn guess_bytes(bytes: &BytesMut) ->TcpProtocol {
+pub fn guess_bytes(bytes: &BytesMut) -> TcpProtocol {
     trace!("bytes {:?}", bytes);
-    if let Some(h) = guess_http(bytes) { return TcpProtocol::PlainHttp(h) }
+    if let Some(h) = guess_http(bytes) {
+        return TcpProtocol::PlainHttp(h);
+    }
     if bytes.starts_with(b"SSH-2.0") {
         return TcpProtocol::SSH;
     }
-    if let Some(x) = parse_tls_sni(bytes.as_ref()) { return TcpProtocol::Tls(x) }
-    return TcpProtocol::Unidentified;
+    if let Some(x) = parse_tls_sni(bytes.as_ref()) {
+        return TcpProtocol::Tls(x);
+    }
+    TcpProtocol::Unidentified
 }
 
-fn guess_http(bytes: &BytesMut)->Option<HttpInfo> {
+fn guess_http(bytes: &BytesMut) -> Option<HttpInfo> {
     let mut headers = [httparse::EMPTY_HEADER; 16];
     let mut req = httparse::Request::new(&mut headers);
     let status = req.parse(bytes).ok()?;
@@ -80,13 +83,17 @@ fn guess_http(bytes: &BytesMut)->Option<HttpInfo> {
         Some(h) => {
             if ua.is_some() || status.is_complete() {
                 Some(HttpInfo::new(h, ua))
-            } else { None }
+            } else {
+                None
+            }
         }
     }
 }
 
-fn ascii_stc_eq_ignore_case(a: &str, b: &str)-> bool {
-    a.len() == b.len() &&
-        a.as_bytes().iter().zip(b.as_bytes().iter())
+fn ascii_stc_eq_ignore_case(a: &str, b: &str) -> bool {
+    a.len() == b.len()
+        && a.as_bytes()
+            .iter()
+            .zip(b.as_bytes().iter())
             .all(|(ac, bc)| ac.eq_ignore_ascii_case(bc))
 }

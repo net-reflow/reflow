@@ -1,5 +1,4 @@
 #![feature(await_macro, async_await)]
-#![feature(futures_api)]
 
 use asocks5::listen::handle_socks_handshake;
 use asocks5::socks::Address;
@@ -33,11 +32,13 @@ fn main() -> Result<(), Error> {
             .for_each(|s| {
                 let peer = s.peer_addr().expect("socket peer address");
                 println!("got tcp connection from {:?}", peer);
-                spawner.spawn(async move {
+                if let Err(e) = spawner.spawn(async move {
                     if let Err(e) = await!(handle_client(s)) {
                         eprintln!("error handling client {}", e);
                     };
-                });
+                }) {
+                    eprintln!("spawn error {:?}", e);
+                }
                 Ok(())
             })
             .compat());
@@ -79,7 +80,7 @@ async fn handle_client(client_stream: TcpStream) -> Result<(), Error> {
 
 async fn resolve_address(address: Address) -> Result<SocketAddr, Error> {
     match address {
-        Address::SocketAddress(a) => return Ok(a),
+        Address::SocketAddress(a) => Ok(a),
         Address::DomainNameAddress(domain, port) => {
             println!("resolving remote address {}", domain);
             let (resolver, bg) = AsyncResolver::from_system_conf()?;

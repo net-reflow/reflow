@@ -1,20 +1,10 @@
 //! parse the configuration file
-use bytes::Bytes;
-use std::str;
-use std::collections::BTreeMap;
-use nom::{
-    digit1,
-    line_ending,
-    multispace0,
-    space0,
-    space1,
-};
-use super::{
-    RoutingAction,
-    RoutingBranch,
-    RoutingCondition,
-};
 use super::super::util::{line_sep, opt_line_sep};
+use super::{RoutingAction, RoutingBranch, RoutingCondition};
+use bytes::Bytes;
+use nom::{digit1, line_ending, multispace0, space0, space1};
+use std::collections::BTreeMap;
+use std::str;
 
 named!(read_cond<&[u8], RoutingCondition>,
     do_parse!(
@@ -112,6 +102,6 @@ named!(pub var_name<&[u8], &[u8]>,
     take_while!( is_alphanumunder )
 );
 
-fn is_alphanumunder(c: u8)-> bool {
+fn is_alphanumunder(c: u8) -> bool {
     c.is_ascii_alphanumeric() || c == b'_' || c == b'-'
 }

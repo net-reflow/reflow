@@ -188,10 +188,7 @@ pub struct TcpResponseHeader {
 impl TcpResponseHeader {
     /// Creates a response header
     pub fn new(reply: Reply, address: Address) -> TcpResponseHeader {
-        TcpResponseHeader {
-            reply: reply,
-            address: address,
-        }
+        TcpResponseHeader { reply, address }
     }
 
     /// Length in bytes
@@ -223,10 +220,10 @@ pub async fn read_handshake_request(mut s: &mut TcpStream) -> Result<HandshakeRe
 
     if ver != consts::SOCKS5_VERSION {
         s.shutdown(Shutdown::Both)?;
-        return Err(SocksError::SocksVersionNoSupport { ver: ver });
+        return Err(SocksError::SocksVersionNoSupport { ver });
     }
     let (_s, methods) = await!(read_exact(&mut s, vec![0u8; nmet as usize]).compat())?;
-    Ok(HandshakeRequest { methods: methods })
+    Ok(HandshakeRequest { methods })
 }
 
 /// SOCKS5 handshake response packet

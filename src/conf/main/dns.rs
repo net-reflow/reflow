@@ -1,11 +1,11 @@
-use std::net::SocketAddr;
-use crate::conf::Egress;
 use crate::conf::main::util::RefVal;
+use crate::conf::Egress;
+use crate::util::BsDisp;
 use bytes::Bytes;
 use failure::Error;
 use std::collections::BTreeMap;
 use std::fmt;
-use crate::util::BsDisp;
+use std::net::SocketAddr;
 
 #[derive(Debug)]
 pub struct DnsProxy {
@@ -20,46 +20,52 @@ pub struct NameServer {
     pub remote: NameServerRemote,
 }
 #[derive(Clone, Debug)]
-pub enum NameServerRemote{
+pub enum NameServerRemote {
     Udp(SocketAddr),
     Tcp(SocketAddr),
 }
 
 impl DnsProxy {
-    pub fn new1(listen: SocketAddr, ms: Vec<(Bytes,NameServer)>)->Result<DnsProxy, Error> {
+    pub fn new1(listen: SocketAddr, ms: Vec<(Bytes, NameServer)>) -> Result<DnsProxy, Error> {
         let mut forward: BTreeMap<Bytes, NameServer> = ms.into_iter().collect();
         let b: Bytes = "else".into();
-        let d = forward.remove(&b)
-            .ok_or_else(||format_err!("No default dns"))?;
+        let d = forward
+            .remove(&b)
+            .ok_or_else(|| format_err!("No default dns"))?;
         Ok(DnsProxy {
-            listen: listen,
-            forward: forward,
-            default:d,
+            listen,
+            forward,
+            default: d,
         })
     }
 
     /// replace named gateways with actual values
-    pub fn deref_route(&mut self, gw: &BTreeMap<Bytes, Egress>)
-                   -> Result<(), Error> {
-        for (_, ns) in &mut self.forward {
+    pub fn deref_route(&mut self, gw: &BTreeMap<Bytes, Egress>) -> Result<(), Error> {
+        for ns in &mut self.forward.values_mut() {
             if let Some(ref mut e) = ns.egress {
                 e.insert_value(gw).map_err(|e| {
-                    format_err!("Error in dns proxy configuration: \
-                    {} is not a defined egress", BsDisp::new(&e))
+                    format_err!(
+                        "Error in dns proxy configuration: \
+                         {} is not a defined egress",
+                        BsDisp::new(&e)
+                    )
                 })?;
             }
         }
         if let Some(ref mut e) = self.default.egress {
             e.insert_value(gw).map_err(|e| {
-                format_err!("Error in dns proxy configuration: \
-                    {} is not a defined egress", BsDisp::new(&e))
+                format_err!(
+                    "Error in dns proxy configuration: \
+                     {} is not a defined egress",
+                    BsDisp::new(&e)
+                )
             })?;
         }
         Ok(())
     }
 }
 impl NameServerRemote {
-    pub fn new(proto: &str, addr: SocketAddr)->NameServerRemote {
+    pub fn new(proto: &str, addr: SocketAddr) -> NameServerRemote {
         match proto {
             "tcp" => NameServerRemote::Tcp(addr),
             "udp" => NameServerRemote::Udp(addr),

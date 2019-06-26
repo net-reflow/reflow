@@ -106,7 +106,7 @@ fn run_copy<R, W>(
     R: AsyncRead + Send + 'static,
     W: AsyncWrite + Send + 'static,
 {
-    spawn.spawn(async move {
+    if let Err(e) = spawn.spawn(async move {
         if let Err(e) = await!(copy_verbose(reader, writer).compat()) {
             if s_to_c {
                 if e.is_read() {
@@ -122,7 +122,9 @@ fn run_copy<R, W>(
                 );
             }
         }
-    });
+    }) {
+        error!("spawning error {:?}", e);
+    }
 }
 
 fn bind_tcp_socket(ip: IpAddr) -> Result<net::TcpStream, Error> {

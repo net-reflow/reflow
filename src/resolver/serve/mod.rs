@@ -28,7 +28,7 @@ pub fn serve(
     let sock_std = UdpSocketStd::bind(addr)?;
 
     let mut s1 = spawner.clone();
-    spawner.spawn(async move {
+    if let Err(e) = spawner.spawn(async move {
         loop {
             let (sock, mut buf, size, peer) = match await!(recv_req(&sock_std)) {
                 Ok(x) => x,
@@ -39,13 +39,17 @@ pub fn serve(
             };
             buf.truncate(size);
             let h = (&handler).clone();
-            s1.spawn(async move {
+            if let Err(e) = s1.spawn(async move {
                 if let Err(e) = await!(handle_dns_client(&buf, peer, sock, h)) {
                     error!("Error handling dns client: {:?}", e);
                 }
-            });
+            }) {
+                error!("Error spawning: {:?}", e);
+            }
         }
-    });
+    }) {
+        error!("Error spawning: {:?}", e);
+    }
     Ok(())
 }
 

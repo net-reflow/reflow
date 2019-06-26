@@ -1,19 +1,19 @@
-mod prefix_match;
 mod decision_tree;
 mod main;
+mod prefix_match;
 mod util;
 
-pub use self::prefix_match::domain_name::DomainMatcher;
-pub use self::prefix_match::ip_addr::IpMatcher;
 pub use self::decision_tree::RoutingAction;
 pub use self::decision_tree::RoutingBranch;
-use std::net::SocketAddr;
-use std::net::IpAddr;
-use bytes::Bytes;
-pub use self::main::{DnsProxy, NameServer, NameServerRemote};
 pub use self::main::{load_conf, MainConf, Relay, RelayProto};
-use std::fmt;
+pub use self::main::{DnsProxy, NameServer, NameServerRemote};
+pub use self::prefix_match::domain_name::DomainMatcher;
+pub use self::prefix_match::ip_addr::IpMatcher;
 use crate::util::BsDisp;
+use bytes::Bytes;
+use std::fmt;
+use std::net::IpAddr;
+use std::net::SocketAddr;
 
 #[derive(Debug, Clone)]
 pub struct Egress {
@@ -28,7 +28,7 @@ pub enum EgressAddr {
 }
 
 impl Egress {
-    pub fn addr(&self)->EgressAddr {
+    pub fn addr(&self) -> EgressAddr {
         self.addr
     }
 }

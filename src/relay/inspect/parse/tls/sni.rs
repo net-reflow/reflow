@@ -1,12 +1,12 @@
-use nom::{be_u8,be_u16, IResult};
 use bytes::Bytes;
+use nom::{be_u16, be_u8, IResult};
 
 /// TLS extensions
 ///
 #[derive(Clone, Debug, PartialEq)]
-pub enum TlsExtension<'a>{
+pub enum TlsExtension<'a> {
     SNI(Vec<(u8, Bytes)>),
-    Unknown(u16,&'a[u8]),
+    Unknown(u16, &'a [u8]),
 }
 
 named!(pub parse_tls_extension_sni_hostname<(u8, Bytes)>,
@@ -25,10 +25,16 @@ named!(pub parse_tls_extension_sni_content<TlsExtension>,
     )
 );
 
-fn parse_tls_extension_with_type(i: &[u8], ext_type:u16, ext_len:u16) -> IResult<&[u8],TlsExtension> {
+fn parse_tls_extension_with_type(
+    i: &[u8],
+    ext_type: u16,
+    ext_len: u16,
+) -> IResult<&[u8], TlsExtension> {
     match ext_type {
         0x0000 => parse_tls_extension_sni_content(i),
-        _      => { map!(i, take!(ext_len), |ext_data| { TlsExtension::Unknown(ext_type,ext_data) }) },
+        _ => map!(i, take!(ext_len), |ext_data| {
+            TlsExtension::Unknown(ext_type, ext_data)
+        }),
     }
 }
 named!(pub parse_tls_extension<TlsExtension>,

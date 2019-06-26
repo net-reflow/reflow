@@ -31,11 +31,10 @@ impl fmt::Debug for SockGetterAsync {
 
 impl SockGetterAsync {
     pub fn new(proxy: SocketAddr, remote: NameServerRemote) -> SockGetterAsync {
-        let sga = SockGetterAsync {
-            proxy: proxy,
+        SockGetterAsync {
+            proxy,
             addr: remote,
-        };
-        sga
+        }
     }
 
     pub async fn get(&self, message: Vec<u8>) -> Result<Vec<u8>, SocksError> {

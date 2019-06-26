@@ -1,10 +1,10 @@
 //! Proxy dns requests based on rules
 
-mod handler;
 pub mod client;
 mod dnsclient;
-mod serve;
+mod handler;
 mod lookup;
+mod serve;
 
-pub use self::serve::serve;
 pub use self::lookup::create_resolver;
+pub use self::serve::serve;

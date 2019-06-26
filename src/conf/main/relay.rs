@@ -1,10 +1,10 @@
+use crate::conf::main::dns::NameServer;
+use crate::conf::main::util::RefVal;
+use crate::conf::NameServerRemote;
+use crate::conf::RoutingBranch;
+use std::fmt;
 use std::net::IpAddr;
 use std::net::SocketAddr;
-use std::fmt;
-use crate::conf::RoutingBranch;
-use crate::conf::main::util::RefVal;
-use crate::conf::main::dns::NameServer;
-use crate::conf::NameServerRemote;
 
 pub struct Relay {
     pub resolver: Option<NameServer>,
@@ -31,20 +31,14 @@ pub enum RelayProto {
     Socks5(SocketAddr),
 }
 
-
 impl Relay {
-    pub fn nameserver_or_default(&self)-> NameServer {
+    pub fn nameserver_or_default(&self) -> NameServer {
         match self.resolver {
             Some(ref r) => r.clone(),
-            None => {
-                NameServer {
-                    egress: None,
-                    remote: NameServerRemote::Udp(
-                        SocketAddr::new(
-                            IpAddr::from([8,8,8,8]),
-                            53)),
-                }
-            }
+            None => NameServer {
+                egress: None,
+                remote: NameServerRemote::Udp(SocketAddr::new(IpAddr::from([8, 8, 8, 8]), 53)),
+            },
         }
     }
 }
