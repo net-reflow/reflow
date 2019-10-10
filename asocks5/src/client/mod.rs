@@ -98,9 +98,10 @@ async fn connect_socks_command(
         0, // no auth
     ];
     await!(write_all(&mut stream, &packet).compat())?;
+    await!(read_handshake_response(&mut stream))?;
+
     await!(write_command_request(&mut stream, target, cmd))?;
 
-    await!(read_handshake_response(&mut stream))?;
     let a = await!(read_response_head(&mut stream))?;
     Ok(a)
 }
@@ -116,9 +117,10 @@ async fn connect_socks_command_sa(
         0, // no auth
     ];
     await!(write_all(&mut stream, &packet).compat())?;
+    await!(read_handshake_response(&mut stream))?;
+
     await!(write_command_request_sa(&mut stream, target, cmd))?;
 
-    await!(read_handshake_response(&mut stream))?;
     read_response_head_3b(&mut stream).await?;
     let a = read_socks_socket_addr(&mut stream).await?;
     Ok(a)
