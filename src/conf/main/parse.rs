@@ -193,7 +193,7 @@ mod tests {
     use bytes::Bytes;
     use std::fs;
 
-    #[test]
+    #[allow(dead_code)]
     fn test() {
         let f = fs::read("config/config").unwrap();
         match conf_items(&f) {

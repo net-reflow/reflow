@@ -1,10 +1,7 @@
-#![feature(await_macro, async_await)]
-
 extern crate byteorder;
 extern crate bytes;
 #[macro_use]
 extern crate failure;
-#[macro_use]
 extern crate futures01;
 extern crate httparse;
 #[macro_use]
@@ -31,11 +28,13 @@ pub mod util;
 
 use crate::conf::load_conf;
 use crate::relay::run_with_conf;
-use futures::executor::ThreadPool;
-use futures::Future;
+
 use futures::task::Context;
-use std::task::Poll;
+
+
+use futures::Future;
 use std::pin::Pin;
+use std::task::Poll;
 
 pub fn run() -> Result<(), i32> {
     env_logger::Builder::from_default_env()
@@ -55,26 +54,24 @@ pub fn run() -> Result<(), i32> {
             return Err(100);
         }
     };
-    let mut pool = ThreadPool::new().map_err(|e| {
-        error!("Error in ThreadPool: {}", e);
-        101
-    })?;
-    let p1 = pool.clone();
-    pool.run(async move {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async move {
+        let dm = conf.domain_matcher.clone();
+        let dns = conf.dns.clone();
         for r in conf.relays {
             info!("Starting {}", r);
+
             if let Err(e) = run_with_conf(
                 r,
                 conf.domain_matcher.clone(),
                 conf.ip_matcher.clone(),
-                p1.clone(),
             ) {
                 error!("Relay error: {:?}", e);
             }
         }
-        if let Some(dns) = conf.dns {
+        if let Some(dns) = dns {
             info!("Starting dns proxy");
-            let ds = resolver::serve(dns, conf.domain_matcher.clone(), p1);
+            let ds = resolver::serve(dns, dm);
             if let Err(e) = ds {
                 error!("Dns server error: {:?}", e);
             }

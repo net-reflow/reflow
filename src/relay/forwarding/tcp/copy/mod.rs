@@ -1,8 +1,11 @@
 use std::io;
 use std::time;
 
-use futures01::{Async, Future, Poll as Poll1};
+
+use futures::task::Context;
+use futures::{Future, Poll as Poll1};
 use futures_timer::Delay;
+use std::pin::Pin;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 /// A future which will copy all data from a reader into a writer.
@@ -75,30 +78,31 @@ where
 
 impl<R, W> Future for CopyVerboseTime<R, W>
 where
-    R: AsyncRead,
-    W: AsyncWrite,
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
 {
-    type Item = (u64, R, W);
-    type Error = CopyError;
+    type Output = Result<(u64, R, W), CopyError>;
 
-    fn poll(&mut self) -> Poll1<(u64, R, W), CopyError> {
+    fn poll(
+        mut self: Pin<&mut Self>,
+        ctx: &mut Context<'_>,
+    ) -> Poll1<Result<(u64, R, W), CopyError>> {
         loop {
             // If our buffer is empty, then we need to read some data to
             // continue.
             if self.pos == self.cap && !self.read_done {
-                let r = {
-                    let reader = self.reader.as_mut().unwrap();
-                    reader.poll_read(&mut self.buf)
-                }
-                .map_err(|e| CopyError::ReadError { err: e })?;
+                let me = &mut *self;
+                let r = Pin::new(me.reader.as_mut().unwrap())
+                    .poll_read(ctx, &mut me.buf)
+                    .map_err(|e| CopyError::ReadError { err: e })?;
                 let n = match r {
-                    Async::Ready(x) => {
+                    Poll1::Ready(x) => {
                         self.clear_timer();
                         x
                     }
-                    Async::NotReady => {
-                        self.test_timeout()?;
-                        return Ok(Async::NotReady);
+                    Poll1::Pending => {
+                        self.test_timeout(ctx)?;
+                        return Poll1::Pending;
                     }
                 };
                 if n == 0 {
@@ -111,14 +115,19 @@ where
 
             // If our buffer has some data, let's write it out!
             while self.pos < self.cap {
-                let w = {
-                    let writer = self.writer.as_mut().unwrap();
-                    writer.poll_write(&self.buf[self.pos..self.cap])
-                }
-                .map_err(|e| CopyError::WriteError { err: e });
-                let i = try_ready!(w);
+                let me = &mut *self;
+                let w = Pin::new(me.writer.as_mut().unwrap())
+                    .poll_write(ctx, &mut me.buf[me.pos..me.cap])
+                    .map_err(|e| CopyError::WriteError { err: e })?;
+
+                let i = match w {
+                    Poll1::Ready(x) => x,
+                    Poll1::Pending => {
+                        return Poll1::Pending;
+                    }
+                };
                 if i == 0 {
-                    return Err(CopyError::WriteZero);
+                    return Poll1::Ready(Err(CopyError::WriteZero));
                 } else {
                     self.pos += i;
                     self.amt += i as u64;
@@ -129,15 +138,19 @@ where
             // data and finish the transfer.
             // done with the entire transfer.
             if self.pos == self.cap && self.read_done {
-                try_ready!(self
-                    .writer
-                    .as_mut()
-                    .unwrap()
-                    .poll_flush()
-                    .map_err(|e| { CopyError::FlushError { err: e } }));
+                let me = &mut *self;
+                let w = Pin::new(me.writer.as_mut().unwrap())
+                    .poll_flush(ctx)
+                    .map_err(|e| CopyError::FlushError { err: e })?;
+                match w {
+                    Poll1::Ready(_) => {}
+                    Poll1::Pending => {
+                        return Poll1::Pending;
+                    }
+                }
                 let reader = self.reader.take().unwrap();
                 let writer = self.writer.take().unwrap();
-                return Ok((self.amt, reader, writer).into());
+                return Poll1::Ready(Ok((self.amt, reader, writer)));
             }
         }
     }
@@ -145,19 +158,19 @@ where
 
 impl<R, W> CopyVerboseTime<R, W>
 where
-    R: AsyncRead,
-    W: AsyncWrite,
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
 {
-    fn test_timeout(&mut self) -> Result<(), CopyError> {
-        if self.timer.is_none() {
-            let d = Delay::new(self.timeout);
-            self.timer = Some(d);
+    fn test_timeout(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), CopyError> {
+        let me = &mut *self;
+        if me.timer.is_none() {
+            let d = Delay::new(me.timeout);
+            me.timer = Some(d);
         }
-        if let Some(ref mut t) = self.timer {
-            match t.poll().unwrap() {
-                Async::Ready(()) => return Err(CopyError::ReadTimeout),
-                Async::NotReady => {}
-            }
+        let t = Pin::new(me.timer.as_mut().unwrap()).poll(cx);
+        match t {
+            Poll1::Ready(()) => return Err(CopyError::ReadTimeout),
+            Poll1::Pending => {}
         }
         Ok(())
     }

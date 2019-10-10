@@ -54,7 +54,10 @@ impl SmartResolver {
 
         let client = self.choose_resolver(&name);
         debug!("Dns query {:?} using {:?}", name, client);
-        await!(client.resolve(buffer.to_vec())).map_err(|e| format_err!("resolve error: {:?}", e))
+        client
+            .resolve(buffer.to_vec())
+            .await
+            .map_err(|e| format_err!("resolve error: {:?}", e))
     }
 
     fn choose_resolver(&self, name: &LowerName) -> &DnsClient {

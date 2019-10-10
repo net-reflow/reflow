@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::net::SocketAddr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DnsProxy {
     pub listen: SocketAddr,
     pub forward: BTreeMap<Bytes, NameServer>,

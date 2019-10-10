@@ -1,18 +1,15 @@
-#![feature(await_macro, async_await)]
-
 use asocks5::listen::handle_socks_handshake;
 use asocks5::socks::Address;
 use asocks5::Command;
 use failure::{format_err, Error};
+use futures::compat::Future01CompatExt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use structopt::StructOpt;
 use tokio;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
-use tokio_io::io::{read, write_all};
 use trust_dns_resolver::AsyncResolver;
 
-use futures::compat::Future01CompatExt;
 use futures::executor::LocalPool;
 
 use futures::task::SpawnExt;
@@ -23,35 +20,37 @@ fn main() -> Result<(), Error> {
     let opt: Opt = Opt::from_args();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), opt.port);
     println!("listening on {:?}", addr);
-    let listner = tokio::net::TcpListener::bind(&addr)?;
     let mut executor = LocalPool::new();
     let mut spawner = executor.spawner();
     executor.run_until(async move {
-        let result = await!(listner
+        let listner = tokio::net::TcpListener::bind(&addr).await.unwrap();
+        let _result = listner
             .incoming()
             .for_each(|s| {
-                let peer = s.peer_addr().expect("socket peer address");
-                println!("got tcp connection from {:?}", peer);
-                if let Err(e) = spawner.spawn(async move {
-                    if let Err(e) = await!(handle_client(s)) {
-                        eprintln!("error handling client {}", e);
-                    };
-                }) {
-                    eprintln!("spawn error {:?}", e);
+                match s {
+                    Ok(s) => {
+                        let peer = s.peer_addr().expect("socket peer address");
+                        println!("got tcp connection from {:?}", peer);
+                        if let Err(e) = spawner.spawn(async move {
+                            if let Err(e) = handle_client(s).await {
+                                eprintln!("error handling client {}", e);
+                            };
+                        }) {
+                            eprintln!("spawn error {:?}", e);
+                        }
+                    }
+                    Err(e) => eprintln!("listen error {}", e),
                 }
-                Ok(())
+                futures::future::ready(())
             })
-            .compat());
-        if let Err(e) = result {
-            eprintln!("error running TcpListener {:?}", e);
-        }
+            .await;
     });
     Ok(())
 }
 
 async fn handle_client(client_stream: TcpStream) -> Result<(), Error> {
     println!("doing socks handshake");
-    let (client_stream, req) = await!(handle_socks_handshake(client_stream))?;
+    let (mut client_stream, req) = handle_socks_handshake(client_stream).await?;
     println!("socks client requests {:?}", req);
     if req.command != Command::TcpConnect {
         return Err(format_err!("this example only handles TcpConnect requests"));
@@ -59,22 +58,22 @@ async fn handle_client(client_stream: TcpStream) -> Result<(), Error> {
 
     // now there is the TcpStream and the socks TcpRequestHeader, you can do anything with it
 
-    let addr = await!(resolve_address(req.address))?;
+    let addr = resolve_address(req.address).await?;
     println!("connecting to remote target {:?}", addr);
-    let target_stream = await!(TcpStream::connect(&addr).compat())?;
+    let mut target_stream = TcpStream::connect(&addr).await?;
 
     // to create a useful socks server, you probably want to run loops
     // but this is just a simple example
 
     println!("reading payload from client");
     let mut buf = [0u8; 2048];
-    let (_s, buf, n) = await!(read(&client_stream, &mut buf[..]).compat())?;
+    let n = client_stream.read(&mut buf[..]).await?;
     println!("forwarding {} bytes to target server", n);
-    await!(write_all(&target_stream, &buf[..n]).compat())?;
+    target_stream.write_all(&buf[..n]).await?;
     println!("reading reply from target server");
-    let (_s, buf, n) = await!(read(&target_stream, &mut buf[..]).compat())?;
+    let n = target_stream.read(&mut buf[..]).await?;
     println!("forwarding reply to client");
-    await!(write_all(client_stream, &buf[..n]).compat())?;
+    client_stream.write_all(&buf[..n]).await?;
     Ok(())
 }
 
@@ -84,8 +83,10 @@ async fn resolve_address(address: Address) -> Result<SocketAddr, Error> {
         Address::DomainNameAddress(domain, port) => {
             println!("resolving remote address {}", domain);
             let (resolver, bg) = AsyncResolver::from_system_conf()?;
-            tokio::spawn(bg);
-            let lookup = await!(resolver.lookup_ip(&*domain).compat())?;
+            tokio::spawn(async move {
+                bg.compat().await.unwrap();
+            });
+            let lookup = resolver.lookup_ip(&*domain).compat().await?;
             let ip = lookup
                 .iter()
                 .next()

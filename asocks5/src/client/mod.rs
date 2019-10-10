@@ -9,25 +9,24 @@ use crate::socks::read_socks_socket_addr;
 use crate::socks::Address;
 use crate::socks::HandshakeResponse;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::compat::Future01CompatExt;
 use std::convert::TryInto;
 use std::io;
-use std::net::Shutdown;
 use std::net::SocketAddr;
-use tokio::io::{read_exact, write_all};
 use tokio::net::TcpStream;
+use tokio::prelude::*;
 
 pub mod udp;
 
 /// response from a socks proxy server
 async fn read_response_head(socket: &mut TcpStream) -> Result<Address, SocksError> {
     read_response_head_3b(socket).await?;
-    await!(read_socks_address(socket))
+    read_socks_address(socket).await
 }
 
 /// version, reply code, reserved
 async fn read_response_head_3b(mut socket: &mut TcpStream) -> Result<(), SocksError> {
-    let (_s, b) = await!(read_exact(&mut socket, [0u8; 3]).compat())?;
+    let mut b = [0u8; 3];
+    socket.read_exact(&mut b).await?;
     let ver = b[0];
     let r = b[1];
     let res = b[2];
@@ -57,11 +56,7 @@ pub async fn connect_socks_to(
     mut stream: &mut TcpStream,
     target: Address,
 ) -> Result<Address, SocksError> {
-    await!(connect_socks_command(
-        &mut stream,
-        target,
-        consts::Command::TcpConnect
-    ))
+    connect_socks_command(&mut stream, target, consts::Command::TcpConnect).await
 }
 
 // avoid Address to avoid ICE
@@ -69,22 +64,14 @@ pub async fn connect_socks_socket_addr(
     mut stream: &mut TcpStream,
     target: SocketAddr,
 ) -> Result<SocketAddr, SocksError> {
-    await!(connect_socks_command_sa(
-        &mut stream,
-        target,
-        consts::Command::TcpConnect
-    ))
+    connect_socks_command_sa(&mut stream, target, consts::Command::TcpConnect).await
 }
 
 pub async fn connect_socks_udp(
     mut stream: &mut TcpStream,
     target: Address,
 ) -> Result<Address, SocksError> {
-    await!(connect_socks_command(
-        &mut stream,
-        target,
-        consts::Command::UdpAssociate
-    ))
+    connect_socks_command(&mut stream, target, consts::Command::UdpAssociate).await
 }
 
 async fn connect_socks_command(
@@ -97,12 +84,12 @@ async fn connect_socks_command(
         1, // one method
         0, // no auth
     ];
-    await!(write_all(&mut stream, &packet).compat())?;
-    await!(read_handshake_response(&mut stream))?;
+    stream.write_all(&packet).await?;
+    read_handshake_response(&mut stream).await?;
 
-    await!(write_command_request(&mut stream, target, cmd))?;
+    write_command_request(&mut stream, target, cmd).await?;
 
-    let a = await!(read_response_head(&mut stream))?;
+    let a = read_response_head(&mut stream).await?;
     Ok(a)
 }
 
@@ -116,10 +103,10 @@ async fn connect_socks_command_sa(
         1, // one method
         0, // no auth
     ];
-    await!(write_all(&mut stream, &packet).compat())?;
-    await!(read_handshake_response(&mut stream))?;
+    stream.write_all(&packet).await?;
+    read_handshake_response(&mut stream).await?;
 
-    await!(write_command_request_sa(&mut stream, target, cmd))?;
+    write_command_request_sa(&mut stream, target, cmd).await?;
 
     read_response_head_3b(&mut stream).await?;
     let a = read_socks_socket_addr(&mut stream).await?;
@@ -128,12 +115,13 @@ async fn connect_socks_command_sa(
 
 /// make sure version and auth are as expected
 async fn read_handshake_response(mut s: &mut TcpStream) -> Result<HandshakeResponse, SocksError> {
-    let (_s, buf) = await!(read_exact(&mut s, [0u8, 0u8]).compat())?;
+    let mut buf = [0u8, 0u8];
+    s.read_exact(&mut buf).await?;
     let ver = buf[0];
     let cmet = buf[1];
 
     if ver != SOCKS5_VERSION {
-        s.shutdown(Shutdown::Both)?;
+        s.shutdown().await?;
         return Err(SocksError::SocksVersionNoSupport { ver });
     }
     if cmet != AuthMethod::NONE as u8 {
@@ -156,7 +144,7 @@ async fn write_command_request(
         0x00, // reserved
     ]);
     write_address(&addr, &mut buf);
-    await!(write_all(s, buf).compat())?;
+    s.write_all(buf.as_ref()).await?;
     Ok(())
 }
 
@@ -166,7 +154,7 @@ async fn write_command_request_sa(
     cmd: consts::Command,
 ) -> Result<(), io::Error> {
     let buf = command_request_packet(addr, cmd);
-    await!(write_all(s, buf).compat())?;
+    s.write_all(buf.as_ref()).await?;
     Ok(())
 }
 

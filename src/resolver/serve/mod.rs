@@ -9,17 +9,16 @@ use crate::conf::DnsProxy;
 use crate::conf::DomainMatcher;
 use crate::resolver::handler;
 use crate::resolver::handler::SmartResolver;
-use futures::compat::Future01CompatExt;
-use futures::task::Spawn;
-use futures::task::SpawnExt;
+
+
+
 use std::net::UdpSocket as UdpSocketStd;
 use tokio::net::UdpSocket;
-use tokio::reactor::Handle;
+use tokio_net::driver::Handle;
 
 pub fn serve(
     conf: DnsProxy,
     matcher: Arc<DomainMatcher>,
-    mut spawner: impl Spawn + Clone + Send + 'static,
 ) -> Result<(), Error> {
     let handler = handler::SmartResolver::new(matcher, &conf)?;
     let handler = Arc::new(handler);
@@ -27,10 +26,9 @@ pub fn serve(
 
     let sock_std = UdpSocketStd::bind(addr)?;
 
-    let mut s1 = spawner.clone();
-    if let Err(e) = spawner.spawn(async move {
+    tokio::spawn(async move {
         loop {
-            let (sock, mut buf, size, peer) = match await!(recv_req(&sock_std)) {
+            let (sock, mut buf, size, peer) = match recv_req(&sock_std).await {
                 Ok(x) => x,
                 Err(e) => {
                     warn!("Error receiving datagram: {}", e);
@@ -39,33 +37,30 @@ pub fn serve(
             };
             buf.truncate(size);
             let h = (&handler).clone();
-            if let Err(e) = s1.spawn(async move {
-                if let Err(e) = await!(handle_dns_client(&buf, peer, sock, h)) {
+            tokio::spawn(async move {
+                if let Err(e) = handle_dns_client(&buf, peer, sock, h).await {
                     error!("Error handling dns client: {:?}", e);
                 }
-            }) {
-                error!("Error spawning: {:?}", e);
-            }
+            });
         }
-    }) {
-        error!("Error spawning: {:?}", e);
-    }
+    });
     Ok(())
 }
 
 async fn recv_req(sock: &UdpSocketStd) -> io::Result<(UdpSocket, Vec<u8>, usize, SocketAddr)> {
-    let sock_tok = UdpSocket::from_std(sock.try_clone()?, &Handle::default())?;
-    let buf = vec![0; 998];
-    await!(sock_tok.recv_dgram(buf).compat())
+    let mut sock_tok = UdpSocket::from_std(sock.try_clone()?, &Handle::default())?;
+    let mut buf = vec![0; 998];
+    let (n, a) = sock_tok.recv_from(&mut buf).await?;
+    Ok((sock_tok, buf, n, a))
 }
 
 async fn handle_dns_client(
     data: &[u8],
     peer: SocketAddr,
-    sock: UdpSocket,
+    mut sock: UdpSocket,
     handler: Arc<SmartResolver>,
 ) -> Result<(), Error> {
-    let x = await!(handler.handle_future(&data))?;
-    await!(sock.send_dgram(&x, &peer).compat())?;
+    let x = handler.handle_future(&data).await?;
+    sock.send_to(&x, &peer).await?;
     Ok(())
 }

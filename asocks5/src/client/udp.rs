@@ -5,7 +5,6 @@ use crate::socks::Address;
 use crate::socks::SocksError;
 use byteorder::ReadBytesExt;
 use bytes::{BufMut, BytesMut};
-use futures::compat::Future01CompatExt;
 use log::{trace, warn};
 use std::io;
 use std::io::Read;
@@ -14,7 +13,7 @@ use std::net::SocketAddrV4;
 use std::net::{self, SocketAddr};
 use std::time::Duration;
 use tokio::net::{TcpStream, UdpSocket};
-use tokio::reactor::Handle;
+use tokio_net::driver::Handle;
 
 #[derive(Debug)]
 pub struct Socks5Datagram {
@@ -38,8 +37,8 @@ impl Socks5Datagram {
             Ipv4Addr::new(0, 0, 0, 0),
             0,
         )));
-        let mut stream = await!(TcpStream::connect(&proxy).compat())?;
-        let proxy_addr: Address = await!(connect_socks_udp(&mut stream, dst))?;
+        let mut stream = TcpStream::connect(&proxy).await?;
+        let proxy_addr: Address = connect_socks_udp(&mut stream, dst).await?;
         let proxy_addr = match proxy_addr {
             Address::SocketAddress(a) => a,
             // I don't think a socks proxy will ever return a domain name in this case
@@ -65,7 +64,7 @@ impl Socks5Datagram {
         })
     }
 
-    pub async fn send_to(self, d: &[u8], addr: Address) -> io::Result<Socks5Datagram> {
+    pub async fn send_to(mut self, d: &[u8], addr: Address) -> io::Result<Socks5Datagram> {
         let mut buf = BytesMut::with_capacity((&addr).len() + 3 + d.len());
         buf.put_slice(&[
             0, 0, // reserved
@@ -73,19 +72,20 @@ impl Socks5Datagram {
         ]);
         write_address(&addr, &mut buf);
         buf.put_slice(d);
-        let (s, _b) = await!(self.socket.send_dgram(buf, &self.proxy_addr).compat())?;
+        self.socket.send_to(buf.as_ref(), &self.proxy_addr).await?;
         let new_self = Socks5Datagram {
-            socket: s,
+            socket: self.socket,
             proxy_addr: self.proxy_addr,
             stream: self.stream,
         };
         Ok(new_self)
     }
 
-    pub async fn recv_from(self, buf: &mut [u8]) -> Result<(Address, usize), SocksError> {
+    pub async fn recv_from(mut self, buf: &mut [u8]) -> Result<(Address, usize), SocksError> {
         let mut header: Vec<u8> = vec![];
         header.resize(998, 0);
-        let (_socket, header, len, addr) = await!(self.socket.recv_dgram(&mut header).compat())?;
+
+        let (len, addr) = self.socket.recv_from(&mut header).await?;
         trace!("received dgram with {} bytes from {:?}", len, addr);
         header.resize(len, 0);
         trace!("dgram {:?}", header);

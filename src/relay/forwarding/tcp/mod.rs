@@ -1,12 +1,11 @@
 use failure::Error;
-use futures::compat::Future01CompatExt;
+
 use net2::TcpBuilder;
 use std::net::SocketAddr;
 use tokio;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio::net::TcpStream;
-use tokio_io::io::write_all;
 
 mod copy;
 use self::copy::copy_verbose;
@@ -19,27 +18,28 @@ use bytes::Bytes;
 use std::net;
 use std::net::IpAddr;
 use std::sync::Arc;
-use tokio::reactor::Handle;
 
-use futures::task::{Spawn, SpawnExt};
 use asocks5::connect_socks_socket_addr;
+
+use tokio::prelude::*;
+use tokio_io::split::split;
+use tokio_net::driver::Handle;
 
 pub async fn handle_incoming_tcp(
     mut client_stream: TcpStream,
     a: SocketAddr,
     router: Arc<TcpRouter>,
-    spawner: impl Spawn + Clone,
 ) -> Result<(), Error> {
-    let tcp = await!(parse_first_packet(&mut client_stream))?;
+    let tcp = parse_first_packet(&mut client_stream).await?;
     if let Some(r) = router.route(a, &tcp.protocol) {
-        await!(carry_out(
+        carry_out(
             tcp.bytes.freeze(),
             a,
             r.clone(),
             client_stream,
             tcp.protocol,
-            spawner,
-        ))?;
+        )
+        .await?;
     } else {
         let p = client_stream.peer_addr();
         return Err(format_err!(
@@ -58,16 +58,17 @@ async fn carry_out(
     r: RoutingAction,
     client_stream: TcpStream,
     pr: TcpProtocol,
-    spawner: impl Spawn + Clone,
 ) -> Result<(), Error> {
-    let s = match r {
+    let mut s = match r {
         RoutingAction::Reset => return Ok(()),
-        RoutingAction::Direct => await!(tokio::net::TcpStream::connect(&a).compat())
+        RoutingAction::Direct => tokio::net::TcpStream::connect(&a)
+            .await
             .map_err(|e| format_err!("Error making direct {:?} connection to {:?}: {}", &pr, a, e)),
         RoutingAction::Named(ref g) => match g.val().addr() {
             EgressAddr::From(ip) => {
                 let x = bind_tcp_socket(ip)?;
-                await!(tokio::net::TcpStream::connect_std(x, &a, &Handle::default()).compat())
+                tokio::net::TcpStream::connect_std(x, &a, &Handle::default())
+                    .await
                     .map_err(|e| {
                         format_err!(
                             "Error making direct {:?} connection to {:?} from {:?}: {}",
@@ -79,18 +80,19 @@ async fn carry_out(
                     })
             }
             EgressAddr::Socks5(x) => {
-                let mut s = TcpStream::connect(&x).compat().await?;
+                let mut s = TcpStream::connect(&x).await?;
                 connect_socks_socket_addr(&mut s, a).await?;
                 Ok(s)
             }
         },
     }?;
-    let (stream, _) = await!(write_all(s, data).compat())
+    s.write_all(data.as_ref())
+        .await
         .map_err(|e| format_err!("Error sending {:?} header bytes to {:?}: {}", &pr, a, e))?;
-    let (ur, uw) = stream.split();
-    let (cr, cw) = client_stream.split();
-    run_copy(ur, cw, a, pr.clone(), r.clone(), true, spawner.clone());
-    run_copy(cr, uw, a, pr, r, false, spawner);
+    let (ur, uw) = split(s);
+    let (cr, cw) = split(client_stream);
+    run_copy(ur, cw, a, pr.clone(), r.clone(), true, );
+    run_copy(cr, uw, a, pr, r, false);
     Ok(())
 }
 
@@ -101,13 +103,12 @@ fn run_copy<R, W>(
     p: TcpProtocol,
     r: RoutingAction,
     s_to_c: bool,
-    mut spawn: impl Spawn,
 ) where
-    R: AsyncRead + Send + 'static,
-    W: AsyncWrite + Send + 'static,
+    R: AsyncRead + Send + 'static + Unpin,
+    W: AsyncWrite + Send + 'static + Unpin,
 {
-    if let Err(e) = spawn.spawn(async move {
-        if let Err(e) = await!(copy_verbose(reader, writer).compat()) {
+    tokio::spawn(async move {
+        if let Err(e) = copy_verbose(reader, writer).await {
             if s_to_c {
                 if e.is_read() {
                     warn!(
@@ -122,9 +123,7 @@ fn run_copy<R, W>(
                 );
             }
         }
-    }) {
-        error!("spawning error {:?}", e);
-    }
+    });
 }
 
 fn bind_tcp_socket(ip: IpAddr) -> Result<net::TcpStream, Error> {

@@ -3,19 +3,16 @@ use std::io;
 use std::net::SocketAddr;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use futures::compat::Future01CompatExt;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio_io::io as tio;
 
 use super::TIMEOUT;
 
 use crate::conf::NameServerRemote;
 use asocks5::socks::Address;
 use asocks5::socks::SocksError;
-use asocks5::{Socks5Datagram, connect_socks_socket_addr};
-
-use tokio::prelude::future::Future;
+use asocks5::{connect_socks_socket_addr, Socks5Datagram};
+use tokio::prelude::*;
 
 /// Do dns queries through a socks5 proxy
 pub struct SockGetterAsync {
@@ -39,24 +36,22 @@ impl SockGetterAsync {
 
     pub async fn get(&self, message: Vec<u8>) -> Result<Vec<u8>, SocksError> {
         match self.addr {
-            NameServerRemote::Tcp(_a) => await!(self.get_tcp(message)),
-            NameServerRemote::Udp(_a) => await!(self.get_udp(message)),
+            NameServerRemote::Tcp(_a) => self.get_tcp(message).await,
+            NameServerRemote::Udp(_a) => self.get_udp(message).await,
         }
     }
 
     pub async fn get_udp(&self, data: Vec<u8>) -> Result<Vec<u8>, SocksError> {
         use std::str::FromStr;
         let la = SocketAddr::from_str("0.0.0.0:0").unwrap();
-        let socks5 = await!(Socks5Datagram::bind_with_timeout(
-            self.proxy,
-            la,
-            Some(Duration::from_secs(TIMEOUT))
-        ))?;
+        let socks5 =
+            Socks5Datagram::bind_with_timeout(self.proxy, la, Some(Duration::from_secs(TIMEOUT)))
+                .await?;
         let addr = ns_sock_addr(&self.addr);
-        let socks5 = await!(socks5.send_to(&data, Address::SocketAddress(addr)))?;
+        let socks5 = socks5.send_to(&data, Address::SocketAddress(addr)).await?;
 
         let mut buf = vec![0; 998];
-        let (addr, n) = await!(socks5.recv_from(&mut buf))?;
+        let (addr, n) = socks5.recv_from(&mut buf).await?;
         debug!("receive {} from {:?}", n, addr);
         buf.truncate(n);
         Ok(buf)
@@ -65,7 +60,7 @@ impl SockGetterAsync {
     pub async fn get_tcp(&self, data: Vec<u8>) -> Result<Vec<u8>, SocksError> {
         let target = ns_sock_addr(&self.addr);
 
-        let mut stream = await!(TcpStream::connect(&self.proxy).compat())?;
+        let mut stream = TcpStream::connect(&self.proxy).await?;
         connect_socks_socket_addr(&mut stream, target).await?;
 
         let len = data.len() as u16;
@@ -74,22 +69,21 @@ impl SockGetterAsync {
             .write_u16::<BigEndian>(len)
             .expect("byteorder");
         trace!("Sending length {}, {:?}", len, lens);
-        let (_ts, _b) = await!(tio::write_all(&mut stream, lens).compat())?;
-        let (_ts, mut buf) = await!(tio::write_all(&mut stream, data).compat())?;
-        let lb = [0u8; 2];
-        let (_ts, b) = await!(tio::read_exact(&mut stream, lb).compat())?;
+        stream.write_all(&lens).await?;
+        stream.write_all(&data).await?;
+        let mut b = [0u8; 2];
+        stream.read_exact(&mut b).await?;
         trace!("Read reply length {:?}", b);
         let mut rdr = io::Cursor::new(b);
         let len = rdr.read_u16::<BigEndian>().expect("read u16");
         trace!("Reply length is {}", len);
+        let mut buf = data;
         buf.resize(len as usize, 0);
         trace!("Resized buf size to {}", buf.len());
-        let (_s, buf) = await!(tio::read_exact(&mut stream, buf)
-            .map_err(|e| {
-                warn!("Error reading {} bytes: {:?}", len, e);
-                e
-            })
-            .compat())?;
+        if let Err(e) = stream.read_exact(&mut buf).await {
+            warn!("Error reading {} bytes: {:?}", len, e);
+            return Err(e.into());
+        }
         Ok(buf)
     }
 }

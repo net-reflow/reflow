@@ -1,18 +1,16 @@
-#![feature(await_macro, async_await)]
-
 use asocks5::connect_socks_socket_addr;
 use asocks5::socks::SocksError;
 use futures::compat::Future01CompatExt;
 use std::net::SocketAddr;
 use structopt::StructOpt;
 use tokio::net::TcpStream;
-use tokio_io::io::{read, write_all};
+use tokio::prelude::*;
 
 fn main() {
     println!("Async socks client");
     let opt: Opt = Opt::from_args();
     let f = async move {
-        if let Err(e) = await!(socks_example(opt.socks, opt.target, opt.data.as_bytes())) {
+        if let Err(e) = socks_example(opt.socks, opt.target, opt.data.as_bytes()).await {
             eprintln!("Error running socks client: {:?}", e);
         }
     };
@@ -25,17 +23,17 @@ async fn socks_example(
     data: &[u8],
 ) -> Result<(), SocksError> {
     println!("connecting to socks server");
-    let mut s = await!(TcpStream::connect(&socks).compat())?;
+    let mut s = TcpStream::connect(&socks).await?;
 
     println!("connecting to remote server");
-    await!(connect_socks_socket_addr(&mut s, target))?;
+    connect_socks_socket_addr(&mut s, target).await?;
 
     println!("sending data");
-    let (_s, _b) = await!(write_all(&s, data).compat())?;
+    s.write_all(data).await?;
 
     println!("reading data");
     let mut buf = [0u8; 2048];
-    let (_s, buf, n) = await!(read(&s, &mut buf[..]).compat())?;
+    let n = s.read(&mut buf[..]).await?;
     let rep = String::from_utf8_lossy(&buf[..n]);
     println!("read data: {}", rep);
 

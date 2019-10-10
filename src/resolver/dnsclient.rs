@@ -7,13 +7,13 @@ use crate::conf::NameServer;
 use crate::conf::NameServerRemote;
 use crate::resolver::client::TIMEOUT;
 use asocks5::socks::SocksError;
-use futures::compat::Future01CompatExt;
+
 use std::io;
 use std::net::IpAddr;
 use std::net::UdpSocket as StdUdpSocket;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-use tokio::reactor::Handle;
+use tokio_net::driver::Handle;
 
 #[derive(Debug)]
 pub enum DnsClient {
@@ -42,14 +42,14 @@ impl DnsClient {
 
     pub async fn resolve(&self, data: Vec<u8>) -> Result<Vec<u8>, SocksError> {
         match self {
-            DnsClient::ViaSocks5(s) => await!(s.get(data)),
+            DnsClient::ViaSocks5(s) => s.get(data).await,
             // FIXME these always use udp even when tcp is configured
             DnsClient::Direct(s) => {
-                let vec = await!(udp_get(s, data))?;
+                let vec = udp_get(s, data).await?;
                 Ok(vec)
             }
             DnsClient::DirectBind(s, i) => {
-                let vec = await!(udp_bind_get(*s, *i, data))?;
+                let vec = udp_bind_get(*s, *i, data).await?;
                 Ok(vec)
             }
         }
@@ -69,9 +69,9 @@ fn ns_sock_addr(ns: &NameServerRemote) -> SocketAddr {
 pub async fn udp_bind_get(addr: SocketAddr, ip: IpAddr, data: Vec<u8>) -> io::Result<Vec<u8>> {
     let s = StdUdpSocket::bind(SocketAddr::from((ip, 0)))?;
     s.set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-    let s = UdpSocket::from_std(s, &Handle::default())?;
-    let (s, _b) = await!(s.send_dgram(data, &addr).compat())?;
-    let buf = vec![0; 998];
-    let (_s, b, nb, _a) = await!(s.recv_dgram(buf).compat())?;
-    Ok(b[..nb].into())
+    let mut s = UdpSocket::from_std(s, &Handle::default())?;
+    s.send_to(&data, &addr).await?;
+    let mut buf = vec![0; 998];
+    let (nb, _a) = s.recv_from(&mut buf).await?;
+    Ok(buf[..nb].into())
 }

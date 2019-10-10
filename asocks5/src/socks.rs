@@ -13,14 +13,12 @@ use std::u8;
 use byteorder::BigEndian;
 use byteorder::ReadBytesExt;
 use failure::Fail;
-use futures::compat::Future01CompatExt;
-
-use tokio_io::io::read_exact;
 
 use crate::consts;
 use crate::consts::Reply;
 use crate::Command;
 use tokio::net::TcpStream;
+use tokio::prelude::*;
 
 #[derive(Debug, Fail)]
 pub enum SocksError {
@@ -82,12 +80,14 @@ impl Debug for Address {
 }
 
 pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, SocksError> {
-    let a = await!(read_exact(&mut stream, [0u8; 1]).compat())?.1[0];
+    let mut b = [0u8; 1];
+    stream.read_exact(&mut b).await?;
+    let a = b[0];
     let addr_type: consts::AddrType = a.try_into()?;
     match addr_type {
         consts::AddrType::IPV4 => {
-            let buf = [0u8; 4 + 2];
-            let (_s, buf) = await!(read_exact(&mut stream, buf).compat())?;
+            let mut buf = [0u8; 4 + 2];
+            stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
             let v4addr = Ipv4Addr::from(cursor.read_u32::<BigEndian>()?);
             let port = cursor.read_u16::<BigEndian>()?;
@@ -95,11 +95,11 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, S
             Ok(addr)
         }
         consts::AddrType::IPV6 => {
-            let buf = [0u8; 16];
-            let (_s, buf) = await!(read_exact(&mut stream, buf).compat())?;
+            let mut buf = [0u8; 16];
+            stream.read_exact(&mut buf).await?;
             let v6addr = Ipv6Addr::from(buf);
-            let buf = [0u8; 2];
-            let (_s, buf) = await!(read_exact(&mut stream, buf).compat())?;
+            let mut buf = [0u8; 2];
+            stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
             let port = cursor.read_u16::<BigEndian>()?;
 
@@ -109,10 +109,12 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, S
         }
         consts::AddrType::DomainName => {
             // domain and port
-            let length = await!(read_exact(&mut stream, [0u8; 1]).compat())?.1[0];
+            let mut b = [0u8; 1];
+            stream.read_exact(&mut b).await?;
+            let length = b[0];
             let addr_len = length as usize;
             let mut raw_addr = [0u8; 257];
-            await!(read_exact(&mut stream, &mut raw_addr[..addr_len + 2]).compat())?;
+            stream.read_exact(&mut raw_addr[..addr_len + 2]).await?;
             let mut cursor = io::Cursor::new(&raw_addr[addr_len..]);
             let port = cursor.read_u16::<BigEndian>()?;
             let addr = String::from_utf8_lossy(&raw_addr[..addr_len]);
@@ -123,12 +125,14 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, S
 }
 
 pub async fn read_socks_socket_addr(mut stream: &mut TcpStream) -> Result<SocketAddr, SocksError> {
-    let a = await!(read_exact(&mut stream, [0u8; 1]).compat())?.1[0];
+    let mut b = [0u8; 1];
+    stream.read_exact(&mut b).await?;
+    let a = b[0];
     let addr_type: consts::AddrType = a.try_into()?;
     match addr_type {
         consts::AddrType::IPV4 => {
-            let buf = [0u8; 4 + 2];
-            let (_s, buf) = await!(read_exact(&mut stream, buf).compat())?;
+            let mut buf = [0u8; 4 + 2];
+            stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
             let v4addr = Ipv4Addr::from(cursor.read_u32::<BigEndian>()?);
             let port = cursor.read_u16::<BigEndian>()?;
@@ -136,11 +140,11 @@ pub async fn read_socks_socket_addr(mut stream: &mut TcpStream) -> Result<Socket
             Ok(addr)
         }
         consts::AddrType::IPV6 => {
-            let buf = [0u8; 16];
-            let (_s, buf) = await!(read_exact(&mut stream, buf).compat())?;
+            let mut buf = [0u8; 16];
+            stream.read_exact(&mut buf).await?;
             let v6addr = Ipv6Addr::from(buf);
-            let buf = [0u8; 2];
-            let (_s, buf) = await!(read_exact(&mut stream, buf).compat())?;
+            let mut buf = [0u8; 2];
+            stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
             let port = cursor.read_u16::<BigEndian>()?;
 
@@ -214,15 +218,17 @@ pub struct HandshakeRequest {
 
 /// Read from a reader
 pub async fn read_handshake_request(mut s: &mut TcpStream) -> Result<HandshakeRequest, SocksError> {
-    let (_s, buf) = await!(read_exact(&mut s, [0u8, 0u8]).compat())?;
+    let mut buf = [0u8, 0u8];
+    s.read_exact(&mut buf).await?;
     let ver = buf[0];
     let nmet = buf[1];
 
     if ver != consts::SOCKS5_VERSION {
-        s.shutdown(Shutdown::Both)?;
+        s.shutdown().await?;
         return Err(SocksError::SocksVersionNoSupport { ver });
     }
-    let (_s, methods) = await!(read_exact(&mut s, vec![0u8; nmet as usize]).compat())?;
+    let mut methods = vec![0u8; nmet as usize];
+    s.read_exact(&mut methods).await?;
     Ok(HandshakeRequest { methods })
 }
 

@@ -12,14 +12,14 @@ use crate::conf::Relay;
 use crate::conf::RelayProto;
 use crate::conf::{DomainMatcher, IpMatcher};
 use crate::resolver::create_resolver;
-use futures::executor::ThreadPool;
+
+
 
 /// Start a relay
 pub fn run_with_conf(
     conf: Relay,
     d: Arc<DomainMatcher>,
     i: Arc<IpMatcher>,
-    pool: ThreadPool,
 ) -> Result<(), Error> {
     let rule = conf.rule.val().clone();
     // FIXME support proxy
@@ -27,11 +27,15 @@ pub fn run_with_conf(
     if ns.egress.is_some() {
         error!("Resolver config in relay doesn't support proxy yet");
     }
-    let resolver = Arc::new(create_resolver(ns.remote, pool.clone()));
+    let resolver = Arc::new(create_resolver(ns.remote));
     let router = TcpRouter::new(d, i, rule);
     match conf.listen {
         RelayProto::Socks5(a) => {
-            listen_socks(&a, resolver, Arc::new(router), pool)?;
+            tokio::spawn(async move {
+                if let Err(e) = listen_socks(&a, resolver, Arc::new(router)).await {
+                    error!("error {:?}", e);
+                }
+            });
         }
     }
     Ok(())

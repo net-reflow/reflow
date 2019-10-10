@@ -1,7 +1,4 @@
-use futures::compat::Future01CompatExt;
 use std::convert::TryInto;
-use tokio_io::io::read_exact;
-use tokio_io::io::write_all;
 
 use super::super::codec::write_address;
 use crate::consts;
@@ -13,39 +10,35 @@ use crate::socks::TcpRequestHeader;
 use crate::socks::TcpResponseHeader;
 use bytes::BufMut;
 use bytes::BytesMut;
+use futures_util::io::AsyncReadExt;
+use futures_util::io::AsyncWriteExt;
 use std::net::Shutdown;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
+use tokio::prelude::*;
 
 pub async fn read_command_async(
     mut s: TcpStream,
     peer: SocketAddr,
 ) -> Result<(TcpStream, TcpRequestHeader), SocksError> {
-    let (_s, buf) = await!(read_exact(&mut s, [0u8; 3]).compat())?;
+    let mut buf = [0u8; 3];
+    s.read_exact(&mut buf).await?;
     let ver = buf[0];
     if ver != consts::SOCKS5_VERSION {
-        await!(write_command_response_async(
-            &mut s,
-            Reply::ConnectionRefused,
-            peer
-        ))?;
+        write_command_response_async(&mut s, Reply::ConnectionRefused, peer).await?;
         s.shutdown(Shutdown::Both)?;
         return Err(SocksError::SocksVersionNoSupport { ver });
     }
     let cmd = buf[1].try_into();
     if let Err(e) = cmd {
         let e: SocksError = e;
-        await!(write_command_response_async(
-            &mut s,
-            Reply::CommandNotSupported,
-            peer
-        ))?;
+        write_command_response_async(&mut s, Reply::CommandNotSupported, peer).await?;
         s.shutdown(Shutdown::Both)?;
         return Err(e);
     }
     let cmd = cmd.unwrap();
-    await!(write_command_response_async(&mut s, Reply::SUCCEEDED, peer))?;
-    let address = await!(read_socks_address(&mut s))?;
+    write_command_response_async(&mut s, Reply::SUCCEEDED, peer).await?;
+    let address = read_socks_address(&mut s).await?;
     let header = TcpRequestHeader {
         command: cmd,
         address,
@@ -63,6 +56,6 @@ async fn write_command_response_async(
     let mut buf = BytesMut::with_capacity(resp.len());
     buf.put_slice(&[consts::SOCKS5_VERSION, resp.reply as u8, 0x00]);
     write_address(&resp.address, &mut buf);
-    await!(write_all(s, buf).compat())?;
+    s.write_all(buf.as_ref()).await?;
     Ok(())
 }

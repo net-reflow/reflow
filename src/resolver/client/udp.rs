@@ -1,21 +1,21 @@
-use futures::compat::Future01CompatExt;
+
 use std::io;
 use std::net::SocketAddr;
 use std::net::UdpSocket as UdpSocketStd;
 use tokio::net::UdpSocket as UdpSocketTokio;
-use tokio::reactor::Handle;
 
 use super::TIMEOUT;
 use std::time::Duration;
+use tokio_net::driver::Handle;
 
 pub async fn udp_get(addr: &SocketAddr, data: Vec<u8>) -> io::Result<Vec<u8>> {
     let uss = UdpSocketStd::bind("0.0.0.0:0")?;
     uss.set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-    let ust = UdpSocketTokio::from_std(uss, &Handle::default())?;
-    let (sock, mut buf) = await!(ust.send_dgram(data, addr).compat())?;
+    let mut ust = UdpSocketTokio::from_std(uss, &Handle::default())?;
+    ust.send_to(&data, addr).await?;
+    let mut buf = data;
     buf.resize(998, 0);
-    let buf = vec![0; 998];
-    let (_sock, mut buf, nb, _a) = await!(sock.recv_dgram(buf).compat())?;
+    let (nb, _a) = ust.recv_from(&mut buf).await?;
     buf.truncate(nb);
     Ok(buf)
 }

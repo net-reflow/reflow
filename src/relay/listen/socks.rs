@@ -12,47 +12,38 @@ use asocks5::socks::Address;
 use asocks5::socks::SocksError;
 use asocks5::socks::TcpRequestHeader;
 use asocks5::Command;
-use futures01::stream::Stream;
 use tokio::net::TcpStream;
 
-use futures::executor::ThreadPool;
-use futures::future::ready;
-use futures::task::Spawn;
-use futures::task::SpawnExt;
-use futures::FutureExt;
-use futures::TryFutureExt;
 
-pub fn listen_socks(
+use futures::future::ready;
+
+use futures::task::SpawnExt;
+
+use tokio::prelude::*;
+
+pub async fn listen_socks(
     addr: &SocketAddr,
     resolver: Arc<AsyncResolver>,
     router: Arc<TcpRouter>,
-    mut pool: ThreadPool,
 ) -> Result<(), Error> {
-    let l = tokio::net::TcpListener::bind(addr)?;
+    let l = tokio::net::TcpListener::bind(addr).await?;
     let l = l.incoming();
-    let mut p2 = pool.clone();
     let f = l.for_each(move |s| {
-        let r1 = resolver.clone();
-        let rt1 = router.clone();
-        let p1 = pool.clone();
-        if let Err(e) = pool.spawn(async move {
-            let _r = await!(handle_client(s, r1, rt1, p1)).map_err(|e| {
-                error!("error handling client {}", e);
-            });
-        }) {
-            error!("error spawning {:?}", e);
+        match s {
+            Ok(s) => {
+                let r1 = resolver.clone();
+                let rt1 = router.clone();
+                tokio::spawn(async move {
+                    let _r = handle_client(s, r1, rt1).await.map_err(|e| {
+                        error!("error handling client {}", e);
+                    });
+                });
+            }
+            Err(e) => error!("error incoming {:?}", e),
         }
-        Ok(())
+        ready(())
     });
-    if let Err(e) = p2.spawn(
-        f.compat()
-            .map_err(|e| {
-                error!("foreach error {}", e);
-            })
-            .then(|_| ready(())),
-    ) {
-        error!("spawn error {:?}", e);
-    }
+    tokio::spawn(f);
     Ok(())
 }
 
@@ -60,11 +51,10 @@ async fn handle_client(
     s: TcpStream,
     res: Arc<AsyncResolver>,
     rt: Arc<TcpRouter>,
-    spawner: impl Spawn + Clone,
 ) -> Result<(), Error> {
-    let (s, req) = await!(handle_socks_handshake(s))?;
-    let a = await!(read_address(req, res.clone()))?;
-    await!(handle_incoming_tcp(s, a, rt, spawner))
+    let (s, req) = handle_socks_handshake(s).await?;
+    let a = read_address(req, res.clone()).await?;
+    handle_incoming_tcp(s, a, rt).await
 }
 
 async fn read_address(
@@ -78,7 +68,10 @@ async fn read_address(
     match head.address {
         Address::SocketAddress(a) => Ok(a),
         Address::DomainNameAddress(domain, port) => {
-            let lookup = await!(resolver.lookup_ip(&*domain).compat())
+            let lookup = resolver
+                .lookup_ip(&*domain)
+                .compat()
+                .await
                 .map_err(|e| format_err!("Error resolving {}: {}", domain, e))?;
             let ip = lookup
                 .iter()

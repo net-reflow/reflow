@@ -10,8 +10,8 @@ pub async fn handle_socks_handshake(
     mut ts: TcpStream,
 ) -> Result<(TcpStream, TcpRequestHeader), Error> {
     let peer = ts.peer_addr()?;
-    let h = await!(read_handshake_request(&mut ts))?;
-    await!(handle_socks_head(&mut ts, h))?;
-    let (s, req) = await!(read_command_async(ts, peer))?;
+    let h = read_handshake_request(&mut ts).await?;
+    handle_socks_head(&mut ts, h).await?;
+    let (s, req) = read_command_async(ts, peer).await?;
     Ok((s, req))
 }
