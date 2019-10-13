@@ -1,0 +1,28 @@
+language: rust
+git:
+  depth: 1
+branches:
+  except:
+  - /^untagged-.*$/
+  - /^build-.*$/
+  - /^v\d+\.\d+-.*$/
+os:
+- linux
+- osx
+- windows
+rust:
+- nightly
+cache: cargo
+script:
+- cargo build --release
+before_deploy: ci/before_deploy.sh
+deploy:
+  provider: releases
+  api_key:
+    secure: dXE0376DxEK68WpC4RbujdhImF4yV2yToEa+6CbK2/fWiQ2sTp0aXzyyRX46Ty4IPBNCtHKKOn9w6F5HFTBFYBCP18pSJONnh6sbXzx1K9Cgv6Y/Ffm+SwZ9zEjC7Um/Zc09106uG0OtnbWEpQ2oevTgyH6kiBfqtIfz0tL0usJ34D/uPn03h4res7epw4gKi+3HqxVL0g+YaPTKczOa2Sj8ZrQJzJh6yM6rsHzsWY4h49x1SqDqy03+uULgyXh6jUmJz207WQtKbVGdbAECeE96id6WjcYMmFUU6f4FOdmoe1fGJl5GFwZYPc4vOl1vtYtFwh389s3na+jcLdtyX/rGRX1uy5uzzvs7ZUVWgSCbdLU5g4s12hzbvMjK8dSj8HDzdicFSlfBQdNTHT0qEeJcG2JctvocOueOar7KjyH/EH/DcRFFJSw9WFc61caQriKvWVNQgfiGAp9Gtvx7oxsIoRGdnWYvKW1sawiXsqpKMayuAcW2nLk46m7goHd0yYikIAqa7lNDVFqc7yDe2ob5RqjkUa7vRpfdGc34wTJjBbuym/TXdS26kdw31iW6nMW0wPBTO2s4CEp7PEWvxTEzvMzLILVWGROWkRMTLyN1QJRfRIFM1QsSHjDhWRXAW3kk77DABE8APsyQu6kw0TsQhKZxjs1+1N9CKyg5k90=
+  skip_cleanup: true
+  overwrite: true
+  file_glob: true
+  file: "./target/deploy/*"
+  on:
+    all_branches: true
