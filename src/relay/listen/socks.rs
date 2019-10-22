@@ -1,9 +1,8 @@
 use failure::Error;
-use futures::compat::Future01CompatExt;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio;
-use trust_dns_resolver::AsyncResolver;
 
 use crate::relay::forwarding::handle_incoming_tcp;
 use crate::relay::TcpRouter;
@@ -14,11 +13,9 @@ use asocks5::socks::TcpRequestHeader;
 use asocks5::Command;
 use tokio::net::TcpStream;
 
-
 use futures::future::ready;
 
-use futures::task::SpawnExt;
-
+use crate::resolver::AsyncResolver;
 use tokio::prelude::*;
 
 pub async fn listen_socks(
@@ -68,13 +65,12 @@ async fn read_address(
     match head.address {
         Address::SocketAddress(a) => Ok(a),
         Address::DomainNameAddress(domain, port) => {
-            let lookup = resolver
-                .lookup_ip(&*domain)
-                .compat()
+            let ips = resolver
+                .resolve(&*domain)
                 .await
                 .map_err(|e| format_err!("Error resolving {}: {}", domain, e))?;
-            let ip = lookup
-                .iter()
+            let ip = ips
+                .into_iter()
                 .next()
                 .ok_or_else(|| format_err!("No address found for domain {}", domain))?;
             Ok(SocketAddr::new(ip, port))

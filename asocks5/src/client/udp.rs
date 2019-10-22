@@ -26,11 +26,7 @@ pub struct Socks5Datagram {
 impl Socks5Datagram {
     /// Creates a UDP socket bound to the specified address which will have its
     /// traffic routed through the specified proxy.
-    pub async fn bind_with_timeout(
-        proxy: SocketAddr,
-        local: SocketAddr,
-        time: Option<Duration>,
-    ) -> Result<Socks5Datagram, SocksError> {
+    pub async fn bind(proxy: SocketAddr, local: SocketAddr) -> Result<Socks5Datagram, SocksError> {
         // we don't know what our IP is from the perspective of the proxy, so
         // don't try to pass `addr` in here.
         let dst = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(
@@ -51,10 +47,6 @@ impl Socks5Datagram {
             }
         };
         let socket = net::UdpSocket::bind(&local)?;
-        if time.is_some() {
-            socket.set_read_timeout(time)?;
-        }
-
         let socket = UdpSocket::from_std(socket, &Handle::default())?;
 
         Ok(Socks5Datagram {

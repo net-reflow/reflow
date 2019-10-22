@@ -10,16 +10,11 @@ use crate::conf::DomainMatcher;
 use crate::resolver::handler;
 use crate::resolver::handler::SmartResolver;
 
-
-
 use std::net::UdpSocket as UdpSocketStd;
 use tokio::net::UdpSocket;
 use tokio_net::driver::Handle;
 
-pub fn serve(
-    conf: DnsProxy,
-    matcher: Arc<DomainMatcher>,
-) -> Result<(), Error> {
+pub fn serve(conf: DnsProxy, matcher: Arc<DomainMatcher>) -> Result<(), Error> {
     let handler = handler::SmartResolver::new(matcher, &conf)?;
     let handler = Arc::new(handler);
     let addr = conf.listen;

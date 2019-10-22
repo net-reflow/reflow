@@ -4,8 +4,6 @@ use bytes::BytesMut;
 use failure::Error;
 use tokio::net::TcpStream;
 
-
-
 use super::InspectedTcp;
 use crate::relay::inspect::parse::guess_bytes;
 use tokio::prelude::*;

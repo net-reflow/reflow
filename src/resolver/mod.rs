@@ -6,5 +6,5 @@ mod handler;
 mod lookup;
 mod serve;
 
-pub use self::lookup::create_resolver;
+pub use self::lookup::AsyncResolver;
 pub use self::serve::serve;

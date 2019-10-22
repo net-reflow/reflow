@@ -1,5 +1,5 @@
 mod decision_tree;
-mod main;
+pub(crate) mod main;
 mod prefix_match;
 mod util;
 

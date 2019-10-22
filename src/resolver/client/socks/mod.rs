@@ -3,10 +3,8 @@ use std::io;
 use std::net::SocketAddr;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use std::time::Duration;
-use tokio::net::TcpStream;
 
-use super::TIMEOUT;
+use tokio::net::TcpStream;
 
 use crate::conf::NameServerRemote;
 use asocks5::socks::Address;
@@ -44,9 +42,7 @@ impl SockGetterAsync {
     pub async fn get_udp(&self, data: Vec<u8>) -> Result<Vec<u8>, SocksError> {
         use std::str::FromStr;
         let la = SocketAddr::from_str("0.0.0.0:0").unwrap();
-        let socks5 =
-            Socks5Datagram::bind_with_timeout(self.proxy, la, Some(Duration::from_secs(TIMEOUT)))
-                .await?;
+        let socks5 = Socks5Datagram::bind(self.proxy, la).await?;
         let addr = ns_sock_addr(&self.addr);
         let socks5 = socks5.send_to(&data, Address::SocketAddress(addr)).await?;
 

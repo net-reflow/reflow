@@ -1,7 +1,6 @@
 use std::io;
 use std::time;
 
-
 use futures::task::Context;
 use futures::{Future, Poll as Poll1};
 use futures_timer::Delay;

@@ -27,8 +27,6 @@ tokio-net = "0.2.0-alpha.6"
 radix_trie = "0.1.*"
 structopt = "^0"
 treebitmap = "0.3.1"
-trust-dns = "0.14.0"
-trust-dns-resolver = "*"
-futures01 = { package = "futures", version = "0.1" }
+trust-dns = { version = "^0.17", default-features = false }
 futures-preview =  { version = "0.3.0-alpha.16", features = ["compat"] }
 tokio = "0.2.0-alpha.6"

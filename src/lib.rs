@@ -2,7 +2,6 @@ extern crate byteorder;
 extern crate bytes;
 #[macro_use]
 extern crate failure;
-extern crate futures01;
 extern crate httparse;
 #[macro_use]
 extern crate log;
@@ -15,8 +14,6 @@ extern crate env_logger;
 extern crate tokio;
 extern crate tokio_io;
 extern crate treebitmap;
-extern crate trust_dns;
-extern crate trust_dns_resolver;
 
 use structopt::StructOpt;
 
@@ -30,7 +27,6 @@ use crate::conf::load_conf;
 use crate::relay::run_with_conf;
 
 use futures::task::Context;
-
 
 use futures::Future;
 use std::pin::Pin;
@@ -61,11 +57,7 @@ pub fn run() -> Result<(), i32> {
         for r in conf.relays {
             info!("Starting {}", r);
 
-            if let Err(e) = run_with_conf(
-                r,
-                conf.domain_matcher.clone(),
-                conf.ip_matcher.clone(),
-            ) {
+            if let Err(e) = run_with_conf(r, conf.domain_matcher.clone(), conf.ip_matcher.clone()) {
                 error!("Relay error: {:?}", e);
             }
         }

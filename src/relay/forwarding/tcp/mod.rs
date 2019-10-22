@@ -91,7 +91,7 @@ async fn carry_out(
         .map_err(|e| format_err!("Error sending {:?} header bytes to {:?}: {}", &pr, a, e))?;
     let (ur, uw) = split(s);
     let (cr, cw) = split(client_stream);
-    run_copy(ur, cw, a, pr.clone(), r.clone(), true, );
+    run_copy(ur, cw, a, pr.clone(), r.clone(), true);
     run_copy(cr, uw, a, pr, r, false);
     Ok(())
 }
