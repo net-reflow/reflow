@@ -10,11 +10,9 @@ bytes = "^0.4"
 failure = "0.1.1"
 log = "^0.4"
 net2 = "^0.2"
-tokio-io = "0.2.0-alpha.6"
-tokio-net = "0.2.0-alpha.6"
 futures-util-preview = "0.2.2"
 futures-preview =  { version = "0.3.0-alpha.16", features = ["compat"] }
-tokio = "0.2.0-alpha.6"
+tokio = { version = "0.2.16", features = ["io-util", "io-driver", "macros", "rt-threaded" , "sync", "time", "tcp", "udp"] }
 
 [dev-dependencies]
 structopt = "*"

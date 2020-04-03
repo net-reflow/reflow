@@ -1,5 +1,3 @@
-#![feature(async_await)]
-
 mod client;
 mod codec;
 mod consts;

@@ -50,7 +50,7 @@ pub fn run() -> Result<(), i32> {
             return Err(100);
         }
     };
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async move {
         let dm = conf.domain_matcher.clone();
         let dns = conf.dns.clone();

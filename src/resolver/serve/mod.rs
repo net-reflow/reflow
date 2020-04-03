@@ -43,7 +43,7 @@ pub fn serve(conf: DnsProxy, matcher: Arc<DomainMatcher>) -> Result<(), Error> {
 }
 
 async fn recv_req(sock: &UdpSocketStd) -> io::Result<(UdpSocket, Vec<u8>, usize, SocketAddr)> {
-    let mut sock_tok = UdpSocket::from_std(sock.try_clone()?, &Handle::default())?;
+    let mut sock_tok = UdpSocket::from_std(sock.try_clone()?)?;
     let mut buf = vec![0; 998];
     let (n, a) = sock_tok.recv_from(&mut buf).await?;
     Ok((sock_tok, buf, n, a))

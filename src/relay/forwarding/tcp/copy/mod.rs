@@ -5,7 +5,7 @@ use futures::task::Context;
 use futures::{Future, Poll as Poll1};
 use futures_timer::Delay;
 use std::pin::Pin;
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 /// A future which will copy all data from a reader into a writer.
 /// modified version of Copy from tokio

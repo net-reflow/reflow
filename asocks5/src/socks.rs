@@ -11,12 +11,12 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::u8;
 
 use byteorder::BigEndian;
-use byteorder::ReadBytesExt;
 use failure::Fail;
 
 use crate::consts;
 use crate::consts::Reply;
 use crate::Command;
+use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 
@@ -89,8 +89,8 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, S
             let mut buf = [0u8; 4 + 2];
             stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
-            let v4addr = Ipv4Addr::from(cursor.read_u32::<BigEndian>()?);
-            let port = cursor.read_u16::<BigEndian>()?;
+            let v4addr = Ipv4Addr::from(AsyncReadExt::read_u32(&mut cursor).await?);
+            let port = cursor.read_u16be()?;
             let addr = Address::SocketAddress(SocketAddr::V4(SocketAddrV4::new(v4addr, port)));
             Ok(addr)
         }
@@ -101,7 +101,7 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, S
             let mut buf = [0u8; 2];
             stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
-            let port = cursor.read_u16::<BigEndian>()?;
+            let port = cursor.read_u16be()?;
 
             let addr =
                 Address::SocketAddress(SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0)));
@@ -116,7 +116,7 @@ pub async fn read_socks_address(mut stream: &mut TcpStream) -> Result<Address, S
             let mut raw_addr = [0u8; 257];
             stream.read_exact(&mut raw_addr[..addr_len + 2]).await?;
             let mut cursor = io::Cursor::new(&raw_addr[addr_len..]);
-            let port = cursor.read_u16::<BigEndian>()?;
+            let port = cursor.read_u16be()?;
             let addr = String::from_utf8_lossy(&raw_addr[..addr_len]);
             let addr = Address::DomainNameAddress(addr.into(), port);
             Ok(addr)
@@ -134,8 +134,8 @@ pub async fn read_socks_socket_addr(mut stream: &mut TcpStream) -> Result<Socket
             let mut buf = [0u8; 4 + 2];
             stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
-            let v4addr = Ipv4Addr::from(cursor.read_u32::<BigEndian>()?);
-            let port = cursor.read_u16::<BigEndian>()?;
+            let v4addr = Ipv4Addr::from(cursor.read_u32be()?);
+            let port = cursor.read_u16be()?;
             let addr = SocketAddr::V4(SocketAddrV4::new(v4addr, port));
             Ok(addr)
         }
@@ -146,7 +146,7 @@ pub async fn read_socks_socket_addr(mut stream: &mut TcpStream) -> Result<Socket
             let mut buf = [0u8; 2];
             stream.read_exact(&mut buf).await?;
             let mut cursor = io::Cursor::new(buf);
-            let port = cursor.read_u16::<BigEndian>()?;
+            let port = cursor.read_u16be()?;
 
             let addr = SocketAddr::V6(SocketAddrV6::new(v6addr, port, 0, 0));
             Ok(addr)
@@ -244,4 +244,20 @@ pub async fn read_handshake_request(mut s: &mut TcpStream) -> Result<HandshakeRe
 #[derive(Clone, Debug, Copy)]
 pub struct HandshakeResponse {
     pub chosen_method: u8,
+}
+
+pub(crate) trait CursorRead {
+    fn read_u16be(&mut self) -> Result<u16, io::Error>;
+    fn read_u32be(&mut self) -> Result<u32, io::Error>;
+}
+
+impl<T: AsRef<[u8]>> CursorRead for io::Cursor<T> {
+    fn read_u16be(&mut self) -> Result<u16, io::Error> {
+        use byteorder::ReadBytesExt;
+        self.read_u16::<BigEndian>()
+    }
+    fn read_u32be(&mut self) -> Result<u32, io::Error> {
+        use byteorder::ReadBytesExt;
+        self.read_u32::<BigEndian>()
+    }
 }

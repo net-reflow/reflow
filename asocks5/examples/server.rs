@@ -15,36 +15,24 @@ use futures::executor::LocalPool;
 use futures::task::SpawnExt;
 
 // the main function is actually no different from any ordinary tcp server
-fn main() -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     println!("Async socks server");
     let opt: Opt = Opt::from_args();
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), opt.port);
     println!("listening on {:?}", addr);
-    let mut executor = LocalPool::new();
-    let mut spawner = executor.spawner();
-    executor.run_until(async move {
-        let listner = tokio::net::TcpListener::bind(&addr).await.unwrap();
-        let _result = listner
-            .incoming()
-            .for_each(|s| {
-                match s {
-                    Ok(s) => {
-                        let peer = s.peer_addr().expect("socket peer address");
-                        println!("got tcp connection from {:?}", peer);
-                        if let Err(e) = spawner.spawn(async move {
-                            if let Err(e) = handle_client(s).await {
-                                eprintln!("error handling client {}", e);
-                            };
-                        }) {
-                            eprintln!("spawn error {:?}", e);
-                        }
-                    }
-                    Err(e) => eprintln!("listen error {}", e),
-                }
-                futures::future::ready(())
-            })
-            .await;
-    });
+
+    let mut listner = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    loop {
+        let (s, _) = listner.accept().await.unwrap();
+        let peer = s.peer_addr().expect("socket peer address");
+        println!("got tcp connection from {:?}", peer);
+        tokio::spawn(async move {
+            if let Err(e) = handle_client(s).await {
+                eprintln!("error handling client {}", e);
+            };
+        });
+    }
     Ok(())
 }
 

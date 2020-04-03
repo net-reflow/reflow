@@ -13,7 +13,6 @@ use std::net::SocketAddrV4;
 use std::net::{self, SocketAddr};
 use std::time::Duration;
 use tokio::net::{TcpStream, UdpSocket};
-use tokio_net::driver::Handle;
 
 #[derive(Debug)]
 pub struct Socks5Datagram {
@@ -47,7 +46,7 @@ impl Socks5Datagram {
             }
         };
         let socket = net::UdpSocket::bind(&local)?;
-        let socket = UdpSocket::from_std(socket, &Handle::default())?;
+        let socket = UdpSocket::from_std(socket)?;
 
         Ok(Socks5Datagram {
             socket,

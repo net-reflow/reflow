@@ -21,9 +21,8 @@ use std::sync::Arc;
 
 use asocks5::connect_socks_socket_addr;
 
+use tokio::io::split;
 use tokio::prelude::*;
-use tokio_io::split::split;
-use tokio_net::driver::Handle;
 
 pub async fn handle_incoming_tcp(
     mut client_stream: TcpStream,
@@ -56,7 +55,7 @@ async fn carry_out(
     data: Bytes,
     a: SocketAddr,
     r: RoutingAction,
-    client_stream: TcpStream,
+    mut client_stream: TcpStream,
     pr: TcpProtocol,
 ) -> Result<(), Error> {
     let mut s = match r {
@@ -67,7 +66,7 @@ async fn carry_out(
         RoutingAction::Named(ref g) => match g.val().addr() {
             EgressAddr::From(ip) => {
                 let x = bind_tcp_socket(ip)?;
-                tokio::net::TcpStream::connect_std(x, &a, &Handle::default())
+                tokio::net::TcpStream::connect_std(x, &a)
                     .await
                     .map_err(|e| {
                         format_err!(

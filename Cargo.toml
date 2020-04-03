@@ -25,8 +25,9 @@ net2 = "^0.2"
 tokio-io = "0.2.0-alpha.6"
 tokio-net = "0.2.0-alpha.6"
 radix_trie = "0.1.*"
-structopt = "^0"
+structopt = "0.3.12"
 treebitmap = "0.3.1"
 trust-dns = { version = "^0.17", default-features = false }
 futures-preview =  { version = "0.3.0-alpha.16", features = ["compat"] }
-tokio = "0.2.0-alpha.6"
+tokio = { version = "0.2.16", features = ["io-util", "io-driver",  "rt-threaded" , "sync", "time", "tcp", "udp"] }
+

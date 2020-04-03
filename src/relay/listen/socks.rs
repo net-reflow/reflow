@@ -23,24 +23,24 @@ pub async fn listen_socks(
     resolver: Arc<AsyncResolver>,
     router: Arc<TcpRouter>,
 ) -> Result<(), Error> {
-    let l = tokio::net::TcpListener::bind(addr).await?;
-    let l = l.incoming();
-    let f = l.for_each(move |s| {
-        match s {
-            Ok(s) => {
-                let r1 = resolver.clone();
-                let rt1 = router.clone();
-                tokio::spawn(async move {
-                    let _r = handle_client(s, r1, rt1).await.map_err(|e| {
-                        error!("error handling client {}", e);
+    let mut l = tokio::net::TcpListener::bind(addr).await?;
+    tokio::spawn(async move {
+        loop {
+            let s = l.accept().await;
+            match s {
+                Ok((s, _addr)) => {
+                    let r1 = resolver.clone();
+                    let rt1 = router.clone();
+                    tokio::spawn(async move {
+                        let _r = handle_client(s, r1, rt1).await.map_err(|e| {
+                            error!("error handling client {}", e);
+                        });
                     });
-                });
+                }
+                Err(e) => error!("error incoming {:?}", e),
             }
-            Err(e) => error!("error incoming {:?}", e),
         }
-        ready(())
     });
-    tokio::spawn(f);
     Ok(())
 }
 

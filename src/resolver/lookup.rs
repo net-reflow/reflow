@@ -2,16 +2,15 @@ use super::dnsclient::DnsClient;
 use crate::conf::NameServer;
 
 use failure::Error;
+use failure::_core::time::Duration;
 use std::net::IpAddr;
 use std::str::FromStr;
+use tokio::time::timeout;
 use trust_dns::op::Message;
 use trust_dns::op::Query;
 use trust_dns::proto::rr::Name;
 use trust_dns::rr::RecordType;
 use trust_dns::serialize::binary::{BinDecodable, BinDecoder};
-
-use failure::_core::time::Duration;
-use tokio::future::FutureExt;
 
 pub struct AsyncResolver {
     client: DnsClient,
@@ -23,10 +22,7 @@ impl AsyncResolver {
     }
 
     pub async fn resolve(&self, name: &str) -> Result<Vec<IpAddr>, Error> {
-        let result = self
-            .resolve_eternal(name)
-            .timeout(Duration::from_secs(10))
-            .await?;
+        let result = timeout(Duration::from_secs(10), self.resolve_eternal(name)).await?;
         result
     }
     async fn resolve_eternal(&self, name: &str) -> Result<Vec<IpAddr>, Error> {

@@ -69,7 +69,7 @@ fn ns_sock_addr(ns: &NameServerRemote) -> SocketAddr {
 pub async fn udp_bind_get(addr: SocketAddr, ip: IpAddr, data: Vec<u8>) -> io::Result<Vec<u8>> {
     let s = StdUdpSocket::bind(SocketAddr::from((ip, 0)))?;
     s.set_read_timeout(Some(Duration::from_secs(TIMEOUT)))?;
-    let mut s = UdpSocket::from_std(s, &Handle::default())?;
+    let mut s = UdpSocket::from_std(s)?;
     s.send_to(&data, &addr).await?;
     let mut buf = vec![0; 998];
     let (nb, _a) = s.recv_from(&mut buf).await?;

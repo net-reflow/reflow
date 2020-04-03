@@ -71,7 +71,7 @@ impl SockGetterAsync {
         stream.read_exact(&mut b).await?;
         trace!("Read reply length {:?}", b);
         let mut rdr = io::Cursor::new(b);
-        let len = rdr.read_u16::<BigEndian>().expect("read u16");
+        let len = rdr.read_u16be().expect("read u16");
         trace!("Reply length is {}", len);
         let mut buf = data;
         buf.resize(len as usize, 0);
@@ -88,5 +88,21 @@ fn ns_sock_addr(ns: &NameServerRemote) -> SocketAddr {
     match ns {
         NameServerRemote::Udp(a) => *a,
         NameServerRemote::Tcp(a) => *a,
+    }
+}
+
+pub(crate) trait CursorRead {
+    fn read_u16be(&mut self) -> Result<u16, io::Error>;
+    fn read_u32be(&mut self) -> Result<u32, io::Error>;
+}
+
+impl<T: AsRef<[u8]>> CursorRead for io::Cursor<T> {
+    fn read_u16be(&mut self) -> Result<u16, io::Error> {
+        use byteorder::ReadBytesExt;
+        self.read_u16::<BigEndian>()
+    }
+    fn read_u32be(&mut self) -> Result<u32, io::Error> {
+        use byteorder::ReadBytesExt;
+        self.read_u32::<BigEndian>()
     }
 }

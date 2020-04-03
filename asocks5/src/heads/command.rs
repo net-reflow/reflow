@@ -10,8 +10,7 @@ use crate::socks::TcpRequestHeader;
 use crate::socks::TcpResponseHeader;
 use bytes::BufMut;
 use bytes::BytesMut;
-use futures_util::io::AsyncReadExt;
-use futures_util::io::AsyncWriteExt;
+
 use std::net::Shutdown;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
