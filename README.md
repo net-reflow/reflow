@@ -108,4 +108,4 @@ Here're some features being developed or considered:
 
 ## Make a Donation
 
-Coming soon.
+BTC: `bc1q8cxs2e3wf525f958zgxzq4skl94nfzwuuq97qz`
